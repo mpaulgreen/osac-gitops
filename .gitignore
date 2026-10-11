@@ -1,0 +1,37 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Secrets and credentials: values never go in Git (P9)
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.token
+*-token
+*.kubeconfig
+kubeconfig
+kubeconfig-*
+.kube/
+auth-import-secret*.yaml
+*-secret.local.yaml
+*.secret.yaml
+
+# Local scratch and generated output
+*.bak
+*.orig
+*.rej
+*.log
+tmp/
+.tmp/
+scratch/

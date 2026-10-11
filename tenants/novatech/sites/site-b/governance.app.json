@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "scope": { "kind": "tenant", "id": "novatech" },
+  "target": "site",
+  "site": "site-b",
+  "layer": "governance",
+  "argoDestination": "site-b",
+  "project": "scope-tenant-novatech",
+  "manifestPath": "tenants/novatech/sites/site-b/governance",
+  "namespace": "models-as-a-service",
+  "targetRevision": "main"
+}

@@ -1,0 +1,276 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-operators
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Installs the operator stack required by the MaaS platform on each spoke.
+      Aligned with Ansible role ocp_4_20_ai_maas for RHOAI 3.5 GA on OCP 4.21.x.
+      Service Mesh is Sail-embedded — no OSSM subscription needed.
+      RHCL auto-installs Authorino, Limitador, and DNS as OLM dependencies.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Group A: cert-manager + RHCL ───────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-a
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # cert-manager
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: cert-manager-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: cert-manager-operator
+                  namespace: cert-manager-operator
+                spec: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: openshift-cert-manager-operator
+                  namespace: cert-manager-operator
+                spec:
+                  channel: stable-v1.18
+                  name: openshift-cert-manager-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+            # kuadrant-system hosts the Kuadrant and Authorino CRs (policies 03, 07).
+            # RHCL is installed HERE (not in openshift-operators) to avoid OLM InstallPlan
+            # conflict: the OpenShift ingress operator creates a Manual-approval servicemesh
+            # Subscription in openshift-operators whenever GatewayClasses exist. OLM merges
+            # all Subscriptions in an OperatorGroup into one InstallPlan, so the RHCL
+            # Subscription (Automatic) gets locked into that Manual plan, which the ingress
+            # operator only approves for its own pinned version. With its own OperatorGroup
+            # in kuadrant-system, RHCL has independent OLM resolution.
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: kuadrant-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: kuadrant-operator-group
+                  namespace: kuadrant-system
+                spec: {}
+            # RHCL — Authorino, Limitador, DNS are OLM auto-dependencies; they follow to kuadrant-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: rhcl-operator
+                  namespace: kuadrant-system
+                spec:
+                  channel: stable
+                  name: rhcl-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+
+    # ── Group B: LWS ───────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-b
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: openshift-lws-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: lws-operator
+                  namespace: openshift-lws-operator
+                spec:
+                  targetNamespaces:
+                    - openshift-lws-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: leader-worker-set
+                  namespace: openshift-lws-operator
+                spec:
+                  channel: stable-v1.0
+                  name: leader-worker-set
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+
+    # ── Group C: RHOAI (channel from site params) ──────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-c
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: redhat-ods-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: rhods-operator
+                  namespace: redhat-ods-operator
+                spec: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: rhods-operator
+                  namespace: redhat-ods-operator
+                spec:
+                  channel: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.rhoai-channel" .ManagedClusterName) hub}}'
+                  name: rhods-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+
+    # ── Group D: observability (OTel + COO) ────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-d
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # OpenTelemetry
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: openshift-opentelemetry-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: openshift-opentelemetry-operator
+                  namespace: openshift-opentelemetry-operator
+                spec: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: opentelemetry-product
+                  namespace: openshift-opentelemetry-operator
+                spec:
+                  channel: stable
+                  name: opentelemetry-product
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+            # Cluster Observability Operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: openshift-cluster-observability-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: cluster-observability-operator
+                  namespace: openshift-cluster-observability-operator
+                spec: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: cluster-observability-operator
+                  namespace: openshift-cluster-observability-operator
+                spec:
+                  channel: stable
+                  name: cluster-observability-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+
+    # ── Cleanup: remove stale RHCL and dependency Subscriptions from openshift-operators ──
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-rhcl-openshift-operators-cleanup
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: rhcl-operator
+                  namespace: openshift-operators
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: authorino-operator-stable-redhat-operators-openshift-marketplace
+                  namespace: openshift-operators
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: limitador-operator-stable-redhat-operators-openshift-marketplace
+                  namespace: openshift-operators
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: dns-operator-stable-redhat-operators-openshift-marketplace
+                  namespace: openshift-operators

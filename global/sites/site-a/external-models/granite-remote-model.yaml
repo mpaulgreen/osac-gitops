@@ -1,0 +1,16 @@
+---
+# Routes site-a clients to Granite on site-b via IPP ext-proc path rewrite + apikey injection.
+# path must match the upstream URL: /<namespace>/<LLMInferenceService-name>/v1/chat/completions
+# Clients send: model="granite-remote" — the ExternalModel metadata.name.
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: granite-remote
+  namespace: external-models
+spec:
+  externalProviderRefs:
+    - ref:
+        name: granite-remote-provider
+      apiFormat: openai-chat
+      targetModel: granite-3.1-8b-instruct-fp8
+      path: /maas-models/granite-3-1-8b-fp8/v1/chat/completions

@@ -1,0 +1,20 @@
+---
+# Rendered by the Site adapter. Selects the managed clusters that receive
+# the platform plane. PlacementBindings in hub/platform/ reference this.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: osac-platform-sites
+  namespace: osac-platform
+spec:
+  clusterSets:
+    - default
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: name
+              operator: In
+              values:
+                - local-cluster   # site-a (hub acting as site)
+                - site-b          # spoke

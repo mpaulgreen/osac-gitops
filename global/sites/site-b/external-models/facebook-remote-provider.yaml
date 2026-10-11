@@ -1,0 +1,13 @@
+---
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalProvider
+metadata:
+  name: facebook-remote-provider
+  namespace: external-models
+spec:
+  endpoint: maas.apps.hub.example.com   #REPLACE-ME
+  provider: openai
+  auth:
+    type: apikey
+    secretRef:
+      name: facebook-remote-key

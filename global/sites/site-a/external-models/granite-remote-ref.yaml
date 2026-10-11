@@ -1,0 +1,10 @@
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: granite-remote
+  namespace: external-models
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: granite-remote

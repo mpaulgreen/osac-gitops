@@ -1,0 +1,128 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-platform-config
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Configures the MaaS platform: DSCI, DSC with MaaS enablement,
+      user workload monitoring, and dashboard configuration.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Monitoring ──────────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-monitoring-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: cluster-monitoring-config
+                  namespace: openshift-monitoring
+                data:
+                  config.yaml: |
+                    enableUserWorkload: true
+
+    # ── DSCInitialization ───────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-dsci-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: dscinitialization.opendatahub.io/v2
+                kind: DSCInitialization
+                metadata:
+                  name: default-dsci
+                spec:
+                  applicationsNamespace: redhat-ods-applications
+                  monitoring:
+                    managementState: Managed
+                    namespace: redhat-ods-monitoring
+                  trustedCABundle:
+                    customCABundle: ""
+                    managementState: Managed
+
+    # ── DataScienceCluster ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-dsc-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: datasciencecluster.opendatahub.io/v2
+                kind: DataScienceCluster
+                metadata:
+                  name: default-dsc
+                spec:
+                  components:
+                    dashboard:
+                      managementState: Managed
+                    kserve:
+                      managementState: Managed
+                      modelsAsService:
+                        managementState: Managed
+                    ray:
+                      managementState: Managed
+                    trainingoperator:
+                      managementState: Managed
+                    trustyai:
+                      managementState: Managed
+                    workbenches:
+                      managementState: Managed
+                      workbenchNamespace: rhods-notebooks
+                    modelregistry:
+                      managementState: Managed
+                      registriesNamespace: rhoai-model-registries
+                    ogx:
+                      managementState: Managed
+                    aipipelines:
+                      managementState: Removed
+                    feastoperator:
+                      managementState: Removed
+                    kueue:
+                      managementState: Removed
+
+    # ── OdhDashboardConfig ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-dashboard-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: opendatahub.io/v1alpha
+                kind: OdhDashboardConfig
+                metadata:
+                  name: odh-dashboard-config
+                  namespace: redhat-ods-applications
+                spec:
+                  dashboardConfig:
+                    disableModelServing: false
+                    modelAsService: true

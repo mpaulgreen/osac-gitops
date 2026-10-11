@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "scope": { "kind": "global" },
+  "target": "hub",
+  "site": "hub",
+  "layer": "platform",
+  "argoDestination": "in-cluster",
+  "project": "platform-policies",
+  "manifestPath": "hub/platform",
+  "namespace": "openshift-gitops",
+  "targetRevision": "main"
+}

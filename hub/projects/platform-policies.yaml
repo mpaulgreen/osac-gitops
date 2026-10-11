@@ -1,0 +1,39 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-policies
+  namespace: openshift-gitops
+spec:
+  description: "OSAC platform plane — ACM policies and site parameters applied to the hub"
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: osac-platform
+      server: https://kubernetes.default.svc
+    - namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: policy.open-cluster-management.io
+      kind: Policy
+    - group: policy.open-cluster-management.io
+      kind: PlacementBinding
+    - group: policy.open-cluster-management.io
+      kind: ConfigurationPolicy
+    - group: cluster.open-cluster-management.io
+      kind: Placement
+    - group: cluster.open-cluster-management.io
+      kind: ManagedClusterSetBinding
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: policy.open-cluster-management.io
+      kind: Policy
+    - group: policy.open-cluster-management.io
+      kind: PlacementBinding
+    - group: cluster.open-cluster-management.io
+      kind: Placement
+    - group: cluster.open-cluster-management.io
+      kind: ManagedClusterSetBinding

@@ -1,0 +1,18 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: scope-tenant-novatech
+  namespace: openshift-gitops
+spec:
+  description: "OSAC intent plane — tenant novatech (governance: subscriptions + auth policies)"
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: models-as-a-service
+      server: "*"
+  namespaceResourceWhitelist:
+    - group: maas.opendatahub.io
+      kind: MaaSSubscription
+    - group: maas.opendatahub.io
+      kind: MaaSAuthPolicy

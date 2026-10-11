@@ -1,0 +1,172 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-database
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Provisions the PostgreSQL database for the MaaS gateway. The database
+      Secrets (postgresql-maas-credentials, maas-db-config) are generated on
+      the managed cluster by a managed-side template; no secret value is in
+      Git or in the hub Policy (P9). Requires ACM 2.16+ (randAlphaNum).
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Namespaces ──────────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-database-namespaces
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: redhat-ai-gateway-infra
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: redhat-ods-applications
+
+    # ── Database Secrets (generated on the managed cluster) ─────────────
+    # Managed-side template only: a {{hub ... hub}} value would be stored in
+    # the replicated Policy. An existing password is reused, so the value is
+    # stable across evaluations and survives policy updates.
+    #   - postgresql-maas-credentials (redhat-ods-applications):
+    #       POSTGRESQL_USER, POSTGRESQL_PASSWORD, POSTGRESQL_DATABASE
+    #   - maas-db-config (redhat-ai-gateway-infra): DB_CONNECTION_URL
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-database-secrets
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates-raw: |
+            {{- $user := "maas" }}
+            {{- $db := "maas" }}
+            {{- $creds := lookup "v1" "Secret" "redhat-ods-applications" "postgresql-maas-credentials" }}
+            {{- $pw := randAlphaNum 32 }}
+            {{- if $creds }}
+            {{- $pw = base64dec $creds.data.POSTGRESQL_PASSWORD }}
+            {{- end }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: postgresql-maas-credentials
+                  namespace: redhat-ods-applications
+                type: Opaque
+                data:
+                  POSTGRESQL_USER: {{ base64enc $user }}
+                  POSTGRESQL_PASSWORD: {{ base64enc $pw }}
+                  POSTGRESQL_DATABASE: {{ base64enc $db }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: maas-db-config
+                  namespace: redhat-ai-gateway-infra
+                type: Opaque
+                data:
+                  DB_CONNECTION_URL: {{ printf "postgresql://%s:%s@postgresql.redhat-ods-applications.svc:5432/%s?sslmode=disable" $user $pw $db | base64enc }}
+
+    # ── PostgreSQL StatefulSet + Service ─────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-postgresql
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: postgresql
+                  namespace: redhat-ods-applications
+                spec:
+                  ports:
+                    - name: postgresql
+                      port: 5432
+                      protocol: TCP
+                      targetPort: 5432
+                  selector:
+                    app: postgresql
+                  type: ClusterIP
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: StatefulSet
+                metadata:
+                  name: postgresql
+                  namespace: redhat-ods-applications
+                spec:
+                  serviceName: postgresql
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app: postgresql
+                  template:
+                    metadata:
+                      labels:
+                        app: postgresql
+                    spec:
+                      containers:
+                        - name: postgresql
+                          image: registry.redhat.io/rhel9/postgresql-16:latest
+                          ports:
+                            - containerPort: 5432
+                              protocol: TCP
+                          envFrom:
+                            - secretRef:
+                                name: postgresql-maas-credentials
+                          volumeMounts:
+                            - name: postgresql-data
+                              mountPath: /var/lib/pgsql/data
+                          resources:
+                            requests:
+                              cpu: 500m
+                              memory: 512Mi
+                            limits:
+                              cpu: "2"
+                              memory: 2Gi
+                          livenessProbe:
+                            exec:
+                              command:
+                                - /usr/libexec/check-container
+                                - --live
+                            initialDelaySeconds: 120
+                            timeoutSeconds: 10
+                          readinessProbe:
+                            exec:
+                              command:
+                                - /usr/libexec/check-container
+                            initialDelaySeconds: 5
+                            timeoutSeconds: 1
+                  volumeClaimTemplates:
+                    - metadata:
+                        name: postgresql-data
+                      spec:
+                        accessModes:
+                          - ReadWriteOnce
+                        resources:
+                          requests:
+                            storage: 10Gi

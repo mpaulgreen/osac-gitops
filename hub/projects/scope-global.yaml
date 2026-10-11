@@ -1,0 +1,41 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: scope-global
+  namespace: openshift-gitops
+spec:
+  description: "OSAC intent plane — global scope (models, external models, provider recheck job)"
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: maas-models
+      server: "*"
+    - namespace: maas-models
+      name: "*"
+    - namespace: external-models
+      server: "*"
+    - namespace: external-models
+      name: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: serving.kserve.io
+      kind: LLMInferenceService
+    - group: maas.opendatahub.io
+      kind: MaaSModelRef
+    - group: inference.opendatahub.io
+      kind: ExternalProvider
+    - group: inference.opendatahub.io
+      kind: ExternalModel
+    # Provider recheck job (external-models/provider-recheck.yaml). The credential
+    # Secret is delivered by Policy 08, so Secret is no longer allowed here.
+    - group: ""
+      kind: ServiceAccount
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: batch
+      kind: CronJob

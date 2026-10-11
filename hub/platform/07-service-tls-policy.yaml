@@ -1,0 +1,86 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-service-tls
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Annotates gateway and Authorino Services so service-ca mints serving
+      certificates, and patches the Authorino Deployment env. Authorino itself
+      (listener TLS on) is in osac-gateway. Evaluated every 1m while
+      non-compliant because the Services and Deployment are created by operators.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Service annotations for serving certs ───────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-serving-cert-annotations
+        spec:
+          remediationAction: enforce
+          severity: low
+          evaluationInterval:
+            compliant: 10m
+            noncompliant: 1m
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: openshift-ai-inference-openshift-ai-inference-class
+                  namespace: openshift-ingress
+                  annotations:
+                    service.beta.openshift.io/serving-cert-secret-name: openshift-ai-inference-tls
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: authorino-authorino-authorization
+                  namespace: kuadrant-system
+                  annotations:
+                    service.beta.openshift.io/serving-cert-secret-name: authorino-server-cert
+                spec:
+                  ports:
+                    - name: grpc
+                      port: 50051
+                      protocol: TCP
+                      targetPort: 50051
+                  selector:
+                    authorino-resource: authorino
+
+    # ── Authorino deployment env patch ──────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-authorino-deployment-env
+        spec:
+          remediationAction: enforce
+          severity: low
+          evaluationInterval:
+            compliant: 10m
+            noncompliant: 1m
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: authorino
+                  namespace: kuadrant-system
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: authorino
+                          env:
+                            - name: WATCH_NAMESPACE
+                              value: ""

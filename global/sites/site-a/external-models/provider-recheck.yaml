@@ -1,0 +1,112 @@
+---
+# Provider recheck (intent plane, delivered by Argo with this layer).
+#
+# Why: the RHOAI ExternalProvider controller checks its API-key Secret once. If the
+# Secret does not exist yet it sets Failed/SecretNotFound and retries on exponential
+# backoff (up to ~16 min); it does not watch Secrets. The Secret is distributed by
+# Policy 08 only after the operator registers the key (install.md, step "Register the keys"), which
+# is always after Argo has created this provider.
+#
+# What: once a provider reports SecretNotFound AND its Secret now exists, annotate the
+# provider. An annotation-only change wakes the controller, which then reconciles and
+# turns Ready. It is silent while the key is not registered, and it never touches a
+# Ready provider or one failing for another reason, so it cannot loop.
+#
+# Key rotation needs none of this: the API-key plugin watches Secrets labelled
+# inference.llm-d.ai/ipp-managed=true and updates live.
+#
+# Remove this file once the upstream controller watches Secrets.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: osac-provider-recheck
+  namespace: external-models
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: osac-provider-recheck
+  namespace: external-models
+rules:
+  - apiGroups: ["inference.opendatahub.io"]
+    resources: ["externalproviders"]
+    verbs: ["get", "list"]
+  - apiGroups: ["inference.opendatahub.io"]
+    resources: ["externalproviders"]
+    resourceNames: ["granite-remote-provider"]
+    verbs: ["patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["granite-remote-key"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: osac-provider-recheck
+  namespace: external-models
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: osac-provider-recheck
+subjects:
+  - kind: ServiceAccount
+    name: osac-provider-recheck
+    namespace: external-models
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: osac-provider-recheck
+  namespace: external-models
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 50
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 45
+      template:
+        spec:
+          serviceAccountName: osac-provider-recheck
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: recheck
+              image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+              env:
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  NS=external-models
+                  KIND=externalprovider.inference.opendatahub.io
+                  stuck=$(oc get "$KIND" -n "$NS" -o go-template='{{range .items}}{{$n := .metadata.name}}{{range .status.conditions}}{{if and (eq .type "Ready") (eq .reason "SecretNotFound")}}{{$n}}{{"\n"}}{{end}}{{end}}{{end}}')
+                  for p in $stuck; do
+                    secret=$(oc get "$KIND" "$p" -n "$NS" -o jsonpath='{.spec.auth.secretRef.name}')
+                    if oc get secret "$secret" -n "$NS" -o name >/dev/null 2>&1; then
+                      echo "secret $secret exists; waking provider $p"
+                      oc annotate "$KIND" "$p" -n "$NS" --overwrite "osac.io/secret-recheck=$(date +%s)"
+                    fi
+                  done

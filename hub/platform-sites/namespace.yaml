@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: osac-platform
+  labels:
+    osac.io/managed-by: fulfillment-service

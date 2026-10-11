@@ -1,0 +1,43 @@
+---
+# Rendered by the Site adapter. One key per site; platform policies read
+# these values via hub-template fromConfigMap lookups.
+#
+# Identity: every site uses the one Keycloak on the hub (site-a), realm osac.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osac-site-params
+  namespace: osac-platform
+data:
+  # --- local-cluster: site-a, the hub (hub), CPU only ---
+  local-cluster.rhoai-channel: "stable-3.5"
+  local-cluster.cluster-domain: "apps.hub.example.com"   #REPLACE-ME
+  local-cluster.identity-issuer: "https://keycloak.apps.hub.example.com/realms/osac"   #REPLACE-ME
+  local-cluster.hardware-profiles: |   #REPLACE-ME
+    [
+      {
+        "name": "cpu-only", "display_name": "CPU Only",
+        "cpu_default": 4, "cpu_min": 2, "cpu_max": 8,
+        "memory_default": "16Gi", "memory_min": "8Gi", "memory_max": "32Gi"
+      }
+    ]
+  # --- site-b: spoke (site-b-cluster), workers are g5.2xlarge: 1x NVIDIA A10G (24GB), 8 vCPU, 32 GiB ---
+  site-b.rhoai-channel: "stable-3.5"
+  site-b.cluster-domain: "apps.site-b.example.com"   #REPLACE-ME
+  site-b.identity-issuer: "https://keycloak.apps.hub.example.com/realms/osac"   #REPLACE-ME
+  site-b.hardware-profiles: |   #REPLACE-ME
+    [
+      {
+        "name": "nvidia-a10g-24gb", "display_name": "NVIDIA A10G (24GB)",
+        "accelerator_id": "nvidia.com/gpu", "accelerator_name": "NVIDIA A10G", "gpu_count": 1, "gpu_max": 1,
+        "cpu_default": 4, "cpu_min": 2, "cpu_max": 6,
+        "memory_default": "16Gi", "memory_min": "8Gi", "memory_max": "24Gi",
+        "node_selectors": {"nvidia.com/gpu.present": "true"},
+        "tolerations": [{"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"}]
+      },
+      {
+        "name": "cpu-only", "display_name": "CPU Only",
+        "cpu_default": 4, "cpu_min": 2, "cpu_max": 8,
+        "memory_default": "16Gi", "memory_min": "8Gi", "memory_max": "32Gi"
+      }
+    ]

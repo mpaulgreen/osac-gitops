@@ -1,0 +1,16 @@
+---
+# Routes site-b clients to the simulated Facebook model on site-a via IPP ext-proc.
+# path must match the upstream URL: /<namespace>/<LLMInferenceService-name>/v1/chat/completions
+# Clients send: model="facebook-remote" — the ExternalModel metadata.name.
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: facebook-remote
+  namespace: external-models
+spec:
+  externalProviderRefs:
+    - ref:
+        name: facebook-remote-provider
+      apiFormat: openai-chat
+      targetModel: facebook/opt-125m
+      path: /maas-models/facebook-opt-125m-simulated/v1/chat/completions

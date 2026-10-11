@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "layers": {
+    "platform-sites": "0.1.0",
+    "platform": "0.1.0",
+    "models": "0.1.0",
+    "governance": "0.1.0"
+  }
+}

@@ -1,0 +1,83 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-hardware-profiles
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Creates HardwareProfile CRs from per-site parameters. The profile list
+      is a JSON array in osac-site-params; each entry becomes a HardwareProfile
+      in redhat-ods-applications using the infrastructure.opendatahub.io/v1 CRD.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-hardware-profiles-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- $profiles := fromJson (base64dec `{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.hardware-profiles" .ManagedClusterName) | base64enc hub}}`) }}
+            {{- range $profiles }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: infrastructure.opendatahub.io/v1
+                kind: HardwareProfile
+                metadata:
+                  name: {{ .name }}
+                  namespace: redhat-ods-applications
+                  annotations:
+                    opendatahub.io/display-name: "{{ .display_name }}"
+                    {{- if .description }}
+                    opendatahub.io/description: "{{ .description }}"
+                    {{- end }}
+                    opendatahub.io/disabled: "false"
+                spec:
+                  identifiers:
+                    - displayName: CPU
+                      identifier: cpu
+                      resourceType: CPU
+                      defaultCount: {{ .cpu_default }}
+                      minCount: {{ .cpu_min }}
+                      maxCount: {{ .cpu_max }}
+                    - displayName: Memory
+                      identifier: memory
+                      resourceType: Memory
+                      defaultCount: {{ .memory_default }}
+                      minCount: {{ .memory_min }}
+                      maxCount: {{ .memory_max }}
+                    {{- if .accelerator_id }}
+                    - displayName: "{{ .accelerator_name }}"
+                      identifier: {{ .accelerator_id }}
+                      resourceType: Accelerator
+                      defaultCount: {{ .gpu_count }}
+                      minCount: {{ .gpu_count }}
+                      maxCount: {{ .gpu_max }}
+                    {{- end }}
+                  {{- if or .node_selectors .tolerations }}
+                  scheduling:
+                    type: Node
+                    node:
+                      {{- if .node_selectors }}
+                      nodeSelector:
+                        {{- range $k, $v := .node_selectors }}
+                        {{ $k }}: "{{ $v }}"
+                        {{- end }}
+                      {{- end }}
+                      {{- if .tolerations }}
+                      tolerations:
+                        {{- range .tolerations }}
+                        - key: "{{ .key }}"
+                          operator: "{{ .operator }}"
+                          effect: "{{ .effect }}"
+                        {{- end }}
+                      {{- end }}
+                  {{- end }}
+            {{- end }}

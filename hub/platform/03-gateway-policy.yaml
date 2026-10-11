@@ -1,0 +1,238 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-gateway
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Provisions gateways (MaaS + Inference), Kuadrant, Authorino (listener TLS
+      on from the start), and the MaaS reencrypt Route.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── GatewayClasses ──────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-gatewayclasses
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: GatewayClass
+                metadata:
+                  name: maas-gateway-class
+                spec:
+                  controllerName: openshift.io/gateway-controller/v1
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: GatewayClass
+                metadata:
+                  name: openshift-ai-inference-class
+                spec:
+                  controllerName: openshift.io/gateway-controller/v1
+
+    # ── MaaS Gateway + options ──────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-maas-gateway
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: gw-options
+                  namespace: openshift-ingress
+                data:
+                  service: |
+                    metadata:
+                      annotations:
+                        service.beta.openshift.io/serving-cert-secret-name: "maas-gw-service-tls"
+                    spec:
+                      type: ClusterIP
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: Gateway
+                metadata:
+                  name: maas-default-gateway
+                  namespace: openshift-ingress
+                  labels:
+                    kuadrant.io/gateway: "true"
+                    app.kubernetes.io/name: maas-gateway
+                  annotations:
+                    opendatahub.io/managed: "false"
+                    security.opendatahub.io/authorino-tls-bootstrap: "true"
+                spec:
+                  gatewayClassName: maas-gateway-class
+                  infrastructure:
+                    parametersRef:
+                      group: ""
+                      kind: ConfigMap
+                      name: gw-options
+                  listeners:
+                    - name: https-ext
+                      port: 443
+                      protocol: HTTPS
+                      hostname: 'maas.{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.cluster-domain" .ManagedClusterName) hub}}'
+                      allowedRoutes:
+                        namespaces:
+                          from: All
+                      tls:
+                        certificateRefs:
+                          - group: ""
+                            kind: Secret
+                            name: maas-gw-service-tls
+                        mode: Terminate
+                    - name: https
+                      port: 443
+                      protocol: HTTPS
+                      allowedRoutes:
+                        namespaces:
+                          from: All
+                      tls:
+                        certificateRefs:
+                          - group: ""
+                            kind: Secret
+                            name: maas-gw-service-tls
+                        mode: Terminate
+
+    # ── Inference Gateway ───────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-inference-gateway
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: gateway.networking.k8s.io/v1
+                kind: Gateway
+                metadata:
+                  name: openshift-ai-inference
+                  namespace: openshift-ingress
+                spec:
+                  gatewayClassName: openshift-ai-inference-class
+                  listeners:
+                    - name: http
+                      port: 80
+                      protocol: HTTP
+                      allowedRoutes:
+                        namespaces:
+                          from: All
+                    - name: https
+                      port: 443
+                      protocol: HTTPS
+                      tls:
+                        mode: Terminate
+                        certificateRefs:
+                          - name: openshift-ai-inference-tls
+                            kind: Secret
+                      allowedRoutes:
+                        namespaces:
+                          from: All
+
+    # ── Kuadrant ────────────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-kuadrant
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: kuadrant.io/v1beta1
+                kind: Kuadrant
+                metadata:
+                  name: kuadrant
+                  namespace: kuadrant-system
+                spec:
+                  observability:
+                    enable: true
+
+    # ── Authorino (listener TLS on from the start) ──────────────────────
+    # odh-model-controller creates the Gateway -> Authorino TLS EnvoyFilter only
+    # if this CR already has listener TLS enabled when it reconciles the Gateway,
+    # and it does not re-check when Authorino changes. TLS must never be off.
+    # The pod waits briefly for service-ca to mint authorino-server-cert
+    # (annotation in 07). That cert bundles the service-CA signer, which is also
+    # how Authorino trusts maas-api.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-authorino
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operator.authorino.kuadrant.io/v1beta1
+                kind: Authorino
+                metadata:
+                  name: authorino
+                  namespace: kuadrant-system
+                spec:
+                  replicas: 1
+                  clusterWide: true
+                  listener:
+                    tls:
+                      enabled: true
+                      certSecretRef:
+                        name: authorino-server-cert
+                  oidcServer:
+                    tls:
+                      enabled: false
+
+    # ── MaaS Route (reencrypt) ──────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-maas-route
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: maas-gateway-route
+                  namespace: openshift-ingress
+                spec:
+                  host: 'maas.{{ (lookup "operator.openshift.io/v1" "IngressController" "openshift-ingress-operator" "default").status.domain }}'
+                  to:
+                    kind: Service
+                    name: maas-default-gateway-maas-gateway-class
+                    weight: 100
+                  port:
+                    targetPort: 443
+                  tls:
+                    termination: reencrypt
+                    insecureEdgeTerminationPolicy: Redirect
+                    destinationCACertificate: |
+                      {{ fromConfigMap "openshift-service-ca" "signing-cabundle" "ca-bundle.crt" | autoindent }}

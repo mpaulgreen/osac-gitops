@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "scope": { "kind": "global" },
+  "target": "site",
+  "site": "site-b",
+  "layer": "external-models",
+  "argoDestination": "site-b",
+  "project": "scope-global",
+  "manifestPath": "global/sites/site-b/external-models",
+  "namespace": "external-models",
+  "targetRevision": "main"
+}

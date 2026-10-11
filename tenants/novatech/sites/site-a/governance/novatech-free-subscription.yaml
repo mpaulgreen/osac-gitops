@@ -1,0 +1,22 @@
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: novatech-free-subscription
+  namespace: models-as-a-service
+spec:
+  owner:
+    groups:
+      - name: novatech-free-users
+  modelRefs:
+    - name: facebook-opt-125m-simulated
+      namespace: maas-models
+      tokenRateLimits:
+        - limit: 100
+          window: 1m
+    - name: granite-remote
+      namespace: external-models
+      tokenRateLimits:
+        - limit: 100
+          window: 1m
+  priority: 10

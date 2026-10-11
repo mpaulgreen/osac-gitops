@@ -1,0 +1,41 @@
+---
+# GPU model for site-b (site-b-cluster: NVIDIA A10G 24GB workers). Adapted from
+# maas-osac/analysis/RHOAI 3.5/execute/deploy-upstream-model.sh: same image,
+# vLLM args and resources, but served from maas-models through the shared
+# default gateway (single default tenant, B-14), not a per-tenant gateway.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: granite-3-1-8b-fp8
+  namespace: maas-models
+spec:
+  model:
+    name: granite-3.1-8b-instruct-fp8
+    uri: oci://quay.io/mpaulgreen/granite-3.1-8b-instruct-fp8:gori-1.0   #REPLACE-ME
+  replicas: 1
+  router:
+    route: {}
+    gateway:
+      refs:
+        - name: maas-default-gateway
+          namespace: openshift-ingress
+  template:
+    nodeSelector:
+      nvidia.com/gpu.present: "true"
+    tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+    containers:
+      - name: main
+        args:
+          - --max-model-len=4096
+        resources:   #REPLACE-ME
+          requests:
+            cpu: "2"
+            memory: 8Gi
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "6"
+            memory: 24Gi
+            nvidia.com/gpu: "1"

@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "scope": { "kind": "global" },
+  "target": "site",
+  "site": "site-a",
+  "layer": "models",
+  "argoDestination": "in-cluster",
+  "project": "scope-global",
+  "manifestPath": "global/sites/site-a/models",
+  "namespace": "maas-models",
+  "targetRevision": "main"
+}
