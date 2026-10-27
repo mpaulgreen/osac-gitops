@@ -74,6 +74,13 @@ until oc get crd applications.argoproj.io >/dev/null 2>&1 && \
 done
 printf 'GitOps CRDs ready.\n'
 
+printf 'Waiting for openshift-gitops namespace and ArgoCD instance...\n'
+until oc get namespace openshift-gitops >/dev/null 2>&1 && \
+      oc -n openshift-gitops get argocd openshift-gitops >/dev/null 2>&1; do
+  sleep 10
+done
+printf 'ArgoCD instance ready.\n'
+
 printf '\n=== Step 2: Create osac-platform namespace ===\n'
 oc create namespace osac-platform --dry-run=client -o yaml | oc apply -f -
 
