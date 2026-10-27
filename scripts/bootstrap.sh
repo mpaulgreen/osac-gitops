@@ -248,7 +248,51 @@ oc -n openshift-gitops create secret generic osac-repo-secret \
   oc apply -f -
 
 printf '\n=== Step 10: Deploy osac-layers ApplicationSet ===\n'
-oc apply -f "$REPO_ROOT/hub/applicationsets/"
+oc apply -f - <<YAML
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: osac-layers
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=zero"]
+  generators:
+    - git:
+        repoURL: ${REPO_URL}
+        revision: ${GIT_BRANCH}
+        files:
+          - path: '**/*.app.json'
+  templatePatch: |
+    metadata:
+      name: >-
+        {{- if eq .scope.kind "tenant" -}}
+          {{ .scope.kind }}-{{ .scope.id }}-{{ .site }}-{{ .layer }}
+        {{- else -}}
+          {{ .scope.kind }}-{{ .site }}-{{ .layer }}
+        {{- end -}}
+  template:
+    metadata:
+      name: placeholder
+    spec:
+      project: '{{ .project }}'
+      source:
+        repoURL: ${REPO_URL}
+        targetRevision: '{{ .targetRevision }}'
+        path: '{{ .manifestPath }}'
+        directory:
+          recurse: true
+      destination:
+        name: '{{ .argoDestination }}'
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+YAML
 
 printf '\n=== Step 11: Hub-only Placement for Keycloak and Grid Enrollment ===\n'
 oc apply -f - <<YAML

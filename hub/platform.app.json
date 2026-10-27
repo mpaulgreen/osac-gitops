@@ -8,5 +8,5 @@
   "project": "platform-policies",
   "manifestPath": "hub/platform",
   "namespace": "openshift-gitops",
-  "targetRevision": "main"
+  "targetRevision": "feature/rhoai-3.6"
 }
