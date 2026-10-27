@@ -8,7 +8,7 @@ metadata:
   namespace: osac-platform
 spec:
   clusterSets:
-    - default
+    - global
   predicates:
     - requiredClusterSelector:
         labelSelector:

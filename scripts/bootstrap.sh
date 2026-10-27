@@ -300,6 +300,7 @@ spec:
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
 YAML
 
 printf '\n=== Step 11: Hub-only Placement for Keycloak and Grid Enrollment ===\n'

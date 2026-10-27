@@ -266,18 +266,23 @@ fi
 
 kubectl --context "$hub_context" wait --for=condition=ManagedClusterJoined "managedcluster/$cluster_name" --timeout=10m
 
-kubectl --context "$hub_context" -n "$cluster_name" apply -f - <<EOF
-apiVersion: addon.open-cluster-management.io/v1beta1
+for addon in application-manager governance-policy-framework config-policy-controller cert-policy-controller; do
+  kubectl --context "$hub_context" -n "$cluster_name" apply -f - <<EOF
+apiVersion: addon.open-cluster-management.io/v1alpha1
 kind: ManagedClusterAddOn
 metadata:
-  name: application-manager
+  name: $addon
   namespace: $cluster_name
-spec: {}
+spec:
+  installNamespace: open-cluster-management-agent-addon
 EOF
+done
 
-kubectl --context "$hub_context" -n "$cluster_name" wait \
-  --for=condition=Available managedclusteraddon.addon.open-cluster-management.io/application-manager \
-  --timeout=10m
+for addon in application-manager governance-policy-framework config-policy-controller; do
+  kubectl --context "$hub_context" -n "$cluster_name" wait \
+    --for=condition=Available "managedclusteraddon.addon.open-cluster-management.io/$addon" \
+    --timeout=10m
+done
 wait_for_gitops_cluster_secret
 
 printf '\nImport complete. Verify the generated Argo CD applications in the openshift-gitops namespace.\n'

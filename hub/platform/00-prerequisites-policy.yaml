@@ -53,13 +53,15 @@ spec:
                       mirrorSourcePolicy: NeverContactSource
 
     # ── FBC CatalogSource ───────────────────────────────────────────────
+    # Disabled: the nightly FBC image requires a Quay pull secret with
+    # valid credentials. Set back to enforce once the secret is refreshed.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
           name: osac-fbc-catalog
         spec:
-          remediationAction: enforce
+          remediationAction: inform
           severity: low
           object-templates:
             - complianceType: musthave
