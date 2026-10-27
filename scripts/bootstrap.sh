@@ -289,6 +289,7 @@ spec:
         path: '{{ .manifestPath }}'
         directory:
           recurse: true
+          include: '*.yaml'
       destination:
         name: '{{ .argoDestination }}'
         namespace: '{{ .namespace }}'
