@@ -5,10 +5,10 @@ set -Eeuo pipefail
 # OSAC GitOps — Hub Bootstrap
 #
 # Automates the hub cluster setup: installs the OpenShift GitOps operator,
-# configures Argo CD RBAC, applies AppProjects, creates the ACM plumbing
-# (ManagedClusterSetBinding, GitOpsCluster, Placement), deploys the single
-# osac-layers ApplicationSet, and optionally seeds the Quay pull secret for
-# FBC nightly builds.
+# configures Argo CD RBAC, applies AppProjects, installs the ACM operator
+# and MultiClusterHub, creates the ACM plumbing (ManagedClusterSetBinding,
+# GitOpsCluster, Placement), deploys the single osac-layers ApplicationSet,
+# and optionally seeds the Quay pull secret for FBC nightly builds.
 #
 # Usage:
 #   export REPO_URL="https://github.com/<org>/osac-gitops.git"
@@ -141,7 +141,59 @@ oc -n openshift-gitops patch argocd openshift-gitops --type merge -p '{
 printf '\n=== Step 5: Apply AppProjects ===\n'
 oc apply -f "$REPO_ROOT/hub/projects/"
 
-printf '\n=== Step 6: ACM plumbing ===\n'
+printf '\n=== Step 6: Install ACM operator ===\n'
+oc create namespace open-cluster-management --dry-run=client -o yaml | oc apply -f -
+
+oc apply -f - <<'YAML'
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: open-cluster-management
+  namespace: open-cluster-management
+spec:
+  targetNamespaces:
+    - open-cluster-management
+YAML
+
+oc apply -f - <<'YAML'
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: acm-operator-subscription
+  namespace: open-cluster-management
+spec:
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  name: advanced-cluster-management
+  channel: release-2.17
+  installPlanApproval: Automatic
+YAML
+
+printf 'Waiting for MultiClusterHub CRD (this may take several minutes)...\n'
+until oc get crd multiclusterhubs.operator.open-cluster-management.io >/dev/null 2>&1; do
+  sleep 15
+done
+printf 'MultiClusterHub CRD ready.\n'
+
+printf '\n=== Step 7: Create MultiClusterHub ===\n'
+oc apply -f - <<'YAML'
+apiVersion: operator.open-cluster-management.io/v1
+kind: MultiClusterHub
+metadata:
+  name: multiclusterhub
+  namespace: open-cluster-management
+spec: {}
+YAML
+
+printf 'Waiting for ACM CRDs (ManagedClusterSet, Placement, GitOpsCluster)...\n'
+until oc get crd managedclustersetbindings.cluster.open-cluster-management.io >/dev/null 2>&1 && \
+      oc get crd placements.cluster.open-cluster-management.io >/dev/null 2>&1 && \
+      oc get crd gitopsclusters.apps.open-cluster-management.io >/dev/null 2>&1; do
+  sleep 15
+done
+printf 'ACM CRDs ready.\n'
+
+printf '\n=== Step 8: ACM plumbing ===\n'
 oc apply -f - <<YAML
 apiVersion: cluster.open-cluster-management.io/v1beta2
 kind: ManagedClusterSetBinding
@@ -180,7 +232,7 @@ spec:
     - global
 YAML
 
-printf '\n=== Step 7: Git repository secret ===\n'
+printf '\n=== Step 9: Git repository secret ===\n'
 GH_TOKEN="$(gh auth token 2>/dev/null || true)"
 if [ -z "$GH_TOKEN" ]; then
   die "gh auth token failed — run 'gh auth login' first"
@@ -195,10 +247,10 @@ oc -n openshift-gitops create secret generic osac-repo-secret \
   oc label --local -f - argocd.argoproj.io/secret-type=repository -o yaml | \
   oc apply -f -
 
-printf '\n=== Step 8: Deploy osac-layers ApplicationSet ===\n'
+printf '\n=== Step 10: Deploy osac-layers ApplicationSet ===\n'
 oc apply -f "$REPO_ROOT/hub/applicationsets/"
 
-printf '\n=== Step 9: Hub-only Placement for Keycloak and Grid Enrollment ===\n'
+printf '\n=== Step 11: Hub-only Placement for Keycloak and Grid Enrollment ===\n'
 oc apply -f - <<YAML
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
@@ -253,7 +305,7 @@ subjects:
 YAML
 
 if [ "$seed_pull_secret" = true ]; then
-  printf '\n=== Step 10: Seed Quay pull secret ===\n'
+  printf '\n=== Step 12: Seed Quay pull secret ===\n'
   if [ -z "${QUAY_DOCKERCONFIGJSON:-}" ]; then
     printf 'Paste the .dockerconfigjson value (base64-encoded), then press Enter:\n'
     read -r QUAY_DOCKERCONFIGJSON

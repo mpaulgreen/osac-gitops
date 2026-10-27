@@ -61,12 +61,14 @@ oc config use-context "$HUB_CTX"
 2. Configures Argo CD RBAC (cluster-admin for the controller, ACM policy RBAC)
 3. Patches Argo controller memory limits
 4. Applies AppProjects (`platform-policies`, `scope-global`, `scope-tenant-*`)
-5. Creates the ACM plumbing (ManagedClusterSetBinding, GitOpsCluster, Placement)
-6. Creates the Git repository secret (reads token from `gh auth token`)
-7. Deploys the `osac-layers` ApplicationSet
-8. Creates hub-only Placement and hub-templating RBAC for Keycloak Route lookups
-9. Seeds the Quay pull secret for FBC nightly builds (when `--seed-pull-secret`)
-10. Waits for all hub Applications to sync
+5. Installs the ACM operator (namespace, OperatorGroup, Subscription `release-2.17`)
+6. Creates the MultiClusterHub and waits for ACM CRDs
+7. Creates the ACM plumbing (ManagedClusterSetBinding, GitOpsCluster, Placement)
+8. Creates the Git repository secret (reads token from `gh auth token`)
+9. Deploys the `osac-layers` ApplicationSet
+10. Creates hub-only Placement and hub-templating RBAC for Keycloak Route lookups
+11. Seeds the Quay pull secret for FBC nightly builds (when `--seed-pull-secret`)
+12. Waits for all hub Applications to sync
 
 **Expected result:** All Argo CD Applications show `Synced`. Platform policies begin propagating. Keycloak, CNPG, Redis, and ESO deploy on the hub.
 
