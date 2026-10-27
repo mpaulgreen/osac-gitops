@@ -367,7 +367,8 @@ if [ "$seed_pull_secret" = true ]; then
     printf 'Paste the .dockerconfigjson value (base64-encoded), then press Enter:\n'
     read -r QUAY_DOCKERCONFIGJSON
   fi
-  oc -n osac-platform create secret docker-registry rhoai-quay-pull-secret \
+  oc -n osac-platform create secret generic rhoai-quay-pull-secret \
+    --type=kubernetes.io/dockerconfigjson \
     --from-literal=.dockerconfigjson="$(echo "$QUAY_DOCKERCONFIGJSON" | base64 -d)" \
     --dry-run=client -o yaml | oc apply -f -
 fi
