@@ -13,7 +13,6 @@ metadata:
       the Quay pull-secret distribution. Must converge before Policy 01
       so OLM can resolve the RHOAI 3.6 Subscription from the nightly catalog.
 spec:
-  remediationAction: enforce
   disabled: false
   policy-templates:
     # ── Image mirrors (cluster-scoped) ──────────────────────────────────
