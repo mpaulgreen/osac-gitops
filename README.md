@@ -12,8 +12,6 @@
 
 The `site-a` and `site-b` implementation of models and governance is only to prove out the provisioning.
 
-Note: Replace all example.com in the repo with implementation cluster information.
-
 ## Topology of Reference implementation
 
 ```mermaid

@@ -31,12 +31,12 @@ ACM + GitOps design pattern.
 Run in every new terminal. Contexts come from `oc login`.
 
 ```bash
-export HUB_CTX="default/api-hub-example.com:6443/kube:admin"   #REPLACE-ME
-export SPOKE_CTX="default/api-site-b-example.com:6443/kube:admin"   #REPLACE-ME
+export HUB_CTX="default/api-hub-kni-syseng-devcluster-openshift-com:6443/kube:admin"
+export SPOKE_CTX="default/api-osacmaas-kni-syseng-devcluster-openshift-com:6443/kube:admin"
 export REPO_URL="https://github.com/mpaulgreen/osac-gitops.git"
 export GIT_BRANCH="feature/rhoai-3.6"
-export GITHUB_USER="mpaulgreen"   #REPLACE-ME
-export KC_PASS="<password of the Keycloak test user novatech-free>"   #REPLACE-ME
+export GITHUB_USER="mpaulgreen"
+export KC_PASS="<password of the Keycloak test user novatech-free>"
 ```
 
 Before running any command, update the placeholder values in:
@@ -170,7 +170,7 @@ oc -n osac-platform create secret generic osac-cross-site-api-keys \
    site-c.rhoai-source: "rhoai-catalog-dev"
    site-c.rhoai-fbc-image: "quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:..."
    site-c.cluster-domain: "apps.site-c.example.com"
-   site-c.identity-issuer: "https://keycloak.apps.hub.example.com/realms/saas"
+   site-c.identity-issuer: "https://keycloak.apps.hub.kni.syseng.devcluster.openshift.com/realms/saas"
    site-c.grid-enabled: "true"
    site-c.grid-site-name: "site-c"
    site-c.grid-network-name: "grid"

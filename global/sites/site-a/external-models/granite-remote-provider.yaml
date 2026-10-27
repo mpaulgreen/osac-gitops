@@ -5,7 +5,7 @@ metadata:
   name: granite-remote-provider
   namespace: external-models
 spec:
-  endpoint: maas.apps.site-b.example.com   #REPLACE-ME
+  endpoint: maas.apps.osacmaas.kni.syseng.devcluster.openshift.com
   provider: openai
   auth:
     type: apikey

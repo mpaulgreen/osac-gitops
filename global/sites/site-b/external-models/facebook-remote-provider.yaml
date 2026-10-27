@@ -5,7 +5,7 @@ metadata:
   name: facebook-remote-provider
   namespace: external-models
 spec:
-  endpoint: maas.apps.hub.example.com   #REPLACE-ME
+  endpoint: maas.apps.hub.kni.syseng.devcluster.openshift.com
   provider: openai
   auth:
     type: apikey
