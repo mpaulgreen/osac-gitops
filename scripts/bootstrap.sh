@@ -307,6 +307,7 @@ spec:
 YAML
 
 printf '\n=== Step 11: Hub-only Placement for Keycloak and Grid Enrollment ===\n'
+oc create namespace maas-db --dry-run=client -o yaml | oc apply -f -
 oc apply -f - <<YAML
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
