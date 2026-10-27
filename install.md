@@ -19,7 +19,7 @@ ACM + GitOps design pattern.
 | Requirement | Detail |
 |---|---|
 | OpenShift | 4.20+ with cluster-admin on every cluster |
-| Tools | `oc`, `git`, `jq`, `curl`, `python3`, `gh`, `clusteradm` |
+| Tools | `oc`, `git`, `jq`, `gh` (required); `clusteradm` (optional, for `import-managed-cluster.sh`) |
 | Git | This repository pushed to GitHub, branch `feature/rhoai-3.6` |
 | GPU sites | NFD + NVIDIA GPU operator pre-installed on GPU nodes |
 | Keycloak realms | Bundled in `hub/platform/keycloak-realms/` — deployed by Policy 09 |
@@ -56,25 +56,29 @@ oc config use-context "$HUB_CTX"
 ./scripts/bootstrap.sh --seed-pull-secret --yes
 ```
 
-**What it does:**
-1. Installs the OpenShift GitOps operator
-2. Configures Argo CD RBAC (cluster-admin for the controller, ACM policy RBAC)
-3. Patches Argo controller memory limits
-4. Applies AppProjects (`platform-policies`, `scope-global`, `scope-tenant-*`)
-5. Installs the ACM operator (namespace, OperatorGroup, Subscription `release-2.17`)
-6. Creates the MultiClusterHub and waits for ACM CRDs
-7. Creates the ACM plumbing (ManagedClusterSetBinding, GitOpsCluster, Placement)
-8. Creates the Git repository secret (reads token from `gh auth token`)
-9. Deploys the `osac-layers` ApplicationSet
-10. Creates hub-only Placement and hub-templating RBAC for Keycloak Route lookups
-11. Seeds the Quay pull secret for FBC nightly builds (when `--seed-pull-secret`)
-12. Waits for all hub Applications to sync
+**What it does (12 steps):**
+1. Installs the OpenShift GitOps operator, waits for CRDs and the ArgoCD instance
+2. Creates `osac-platform` namespace
+3. Configures Argo CD RBAC (cluster-admin for the controller, ACM policy RBAC)
+4. Patches Argo controller memory (4Gi limit, 2Gi request)
+5. Applies AppProjects (`platform-policies`, `scope-global`, `scope-tenant-novatech`)
+6. Installs ACM operator (`release-2.17`) and waits for MultiClusterHub CRD
+7. Creates MultiClusterHub (retries until the operator webhook is ready)
+8. Creates ACM plumbing (ManagedClusterSetBinding, GitOpsCluster, Placement)
+9. Creates Git repository secret (token from `gh auth token`)
+10. Deploys `osac-layers` ApplicationSet (directory source filtered to `*.yaml`)
+11. Creates hub-only Placement, pre-creates `maas-db` namespace, hub-templating RBAC
+12. Seeds Quay pull secret (when `--seed-pull-secret`)
 
-**Expected result:** All Argo CD Applications show `Synced`. Platform policies begin propagating. Keycloak, CNPG, Redis, and ESO deploy on the hub.
+Then waits for all hub Applications to sync.
+
+**Expected result:** Hub and platform-sites Applications show `Synced`. The 19 ACM platform policies begin propagating. Site-a intent-plane apps (models, grid-models, governance) will remain `OutOfSync` until RHOAI operator CRDs appear — this is expected and resolves as policies install the operators.
 
 ---
 
 ## 3. Add a Spoke
+
+### Option A: Using the import script (requires `clusteradm`)
 
 ```bash
 ./scripts/import-managed-cluster.sh \
@@ -84,15 +88,75 @@ oc config use-context "$HUB_CTX"
   --yes
 ```
 
-**What it does:**
-1. Creates the ManagedCluster on the hub
-2. Installs the klusterlet on the spoke via `clusteradm join`
-3. Accepts the cluster on the hub
-4. Waits for `ManagedClusterJoined` condition
-5. Enables the `application-manager` addon
-6. Waits for the Argo CD cluster secret to appear
+After the script completes, add the cluster to the `global` ManagedClusterSet:
 
-Repeat for each additional spoke.
+```bash
+oc --context "$HUB_CTX" label managedcluster site-b \
+  cluster.open-cluster-management.io/clusterset=global --overwrite
+```
+
+### Option B: Manual import (no `clusteradm`)
+
+```bash
+# 1. Create ManagedCluster on hub
+oc --context "$HUB_CTX" apply -f - <<'YAML'
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: site-b
+spec:
+  hubAcceptsClient: true
+  leaseDurationSeconds: 60
+YAML
+
+# 2. Wait for the import secret
+until oc --context "$HUB_CTX" -n site-b get secret site-b-import >/dev/null 2>&1; do sleep 5; done
+
+# 3. Extract and apply CRDs on spoke
+oc --context "$HUB_CTX" -n site-b get secret site-b-import \
+  -o jsonpath='{.data.crds\.yaml}' | base64 -d | oc --context "$SPOKE_CTX" apply -f -
+
+# 4. Apply import manifests on spoke (installs klusterlet)
+oc --context "$HUB_CTX" -n site-b get secret site-b-import \
+  -o jsonpath='{.data.import\.yaml}' | base64 -d | oc --context "$SPOKE_CTX" apply -f -
+
+# 5. Wait for the cluster to join
+oc --context "$HUB_CTX" wait --for=condition=ManagedClusterJoined \
+  managedcluster/site-b --timeout=10m
+
+# 6. Add to the global ManagedClusterSet
+oc --context "$HUB_CTX" label managedcluster site-b \
+  cluster.open-cluster-management.io/clusterset=global --overwrite
+
+# 7. Enable application-manager addon
+oc --context "$HUB_CTX" apply -f - <<'YAML'
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ManagedClusterAddOn
+metadata:
+  name: application-manager
+  namespace: site-b
+spec:
+  installNamespace: open-cluster-management-agent-addon
+YAML
+
+# 8. Wait for ArgoCD cluster secret
+until oc --context "$HUB_CTX" -n openshift-gitops get secret \
+  site-b-application-manager-cluster-secret >/dev/null 2>&1; do sleep 10; done
+```
+
+**What it does:**
+1. Registers the spoke as a ManagedCluster with auto-accept
+2. Extracts the klusterlet CRDs and import manifests from the hub-generated secret
+3. Installs the klusterlet agent on the spoke
+4. Waits for `ManagedClusterJoined` condition
+5. Adds the cluster to the `global` ManagedClusterSet (required for Placement/GitOpsCluster)
+6. Enables the `application-manager` addon
+7. Waits for the Argo CD cluster secret (`<name>-application-manager-cluster-secret`)
+
+Once the cluster secret appears, the `osac-layers` ApplicationSet generates the
+spoke's Applications and policies begin enforcing.
+
+Repeat for each additional spoke (replace `site-b` with the new cluster name).
 
 ---
 
@@ -104,7 +168,8 @@ Repeat for each additional spoke.
 oc -n osac-platform get policies
 ```
 
-All policies should show `Compliant`. If a policy is `NonCompliant`, describe it to see which template failed:
+All 19 policies should eventually show `Compliant`. Policies enforcing operator
+installs may take 5–10 minutes to converge. If a policy stays `NonCompliant`:
 
 ```bash
 oc -n osac-platform describe policy <policy-name>
@@ -113,10 +178,15 @@ oc -n osac-platform describe policy <policy-name>
 ### 4.2 Check Argo CD Applications
 
 ```bash
-oc -n openshift-gitops get applications
+oc -n openshift-gitops get applications.argoproj.io
 ```
 
-All Applications should show `Synced` / `Healthy`.
+> **Note:** Use the full CRD name `applications.argoproj.io` — the short form
+> `oc get applications` may return empty if another API group shadows it.
+
+All 10 Applications should show `Synced` / `Healthy`. Site-a intent-plane apps
+(models, grid-models, external-models, governance) may remain `OutOfSync` until
+RHOAI and related operators finish installing and register their CRDs.
 
 ### 4.3 Run smoke tests
 
@@ -245,6 +315,42 @@ oc -n maas-db get cluster maas-db -o jsonpath='{.status.phase}'
 oc -n maas-db get pods -l cnpg.io/cluster=maas-db
 ```
 
+### ApplicationSet not creating Applications
+
+```bash
+oc -n openshift-gitops get applicationset osac-layers -o jsonpath='{.status.conditions}' | jq .
+```
+
+Common causes:
+- Destination cluster not registered in ArgoCD — check `oc -n openshift-gitops get secrets -l argocd.argoproj.io/secret-type=cluster`
+- Non-Kubernetes JSON files in manifest directories (e.g., Keycloak realm exports) — the ApplicationSet uses `include: '*.yaml'` to filter these out
+
+### MultiClusterHub creation fails
+
+The ACM operator webhook may not be ready when the CRD first appears. The bootstrap script retries automatically. If creating manually:
+
+```bash
+until oc apply -f multiclusterhub.yaml 2>/dev/null; do sleep 15; done
+```
+
+### Spoke not joining ACM
+
+Check that both the CRDs and import manifests were applied to the spoke:
+
+```bash
+oc --context "$SPOKE_CTX" -n open-cluster-management-agent get pods
+oc --context "$SPOKE_CTX" get klusterlet
+```
+
+### ArgoCD cluster secret missing for spoke
+
+Verify the spoke is in the `global` ManagedClusterSet and `application-manager` addon is enabled:
+
+```bash
+oc get managedcluster <name> -o jsonpath='{.metadata.labels.cluster\.open-cluster-management\.io/clusterset}'
+oc -n <name> get managedclusteraddon application-manager
+```
+
 ### FBC catalog not resolving
 
 ```bash
@@ -272,16 +378,19 @@ oc -n redhat-ai-grid get inferenceproviders
 For environments where scripts cannot run, the individual steps are:
 
 1. `oc apply -f bootstrap/` — install GitOps operator
-2. Wait for `applications.argoproj.io` CRD
-3. `oc apply -f hub/projects/` — AppProjects
+2. Wait for `applications.argoproj.io` CRD and `openshift-gitops` namespace + ArgoCD instance
+3. Create `osac-platform` namespace
 4. Create cluster-admin ClusterRoleBinding for Argo controller
 5. Create ACM policy ClusterRole + ClusterRoleBinding
 6. Patch Argo controller memory: `oc -n openshift-gitops patch argocd ...`
-7. Create ManagedClusterSetBinding, GitOpsCluster, Placement in `openshift-gitops`
-8. Create Git repo secret with `argocd.argoproj.io/secret-type: repository` label
-9. `oc apply -f hub/applicationsets/` — deploy the osac-layers ApplicationSet
-10. Create hub-only Placement and hub-templating RBAC in `osac-platform`
-11. Seed Quay pull secret in `osac-platform` (if using FBC nightly)
+7. `oc apply -f hub/projects/` — AppProjects
+8. Install ACM operator: namespace, OperatorGroup, Subscription (`release-2.17`)
+9. Wait for MultiClusterHub CRD, then create MultiClusterHub (retry until webhook ready)
+10. Create ManagedClusterSetBinding, GitOpsCluster, Placement in `openshift-gitops`
+11. Create Git repo secret with `argocd.argoproj.io/secret-type: repository` label
+12. Deploy `osac-layers` ApplicationSet (use `hub/applicationsets/` as reference, substitute `REPO_URL` and `GIT_BRANCH`)
+13. Create `maas-db` namespace, hub-only Placement, and hub-templating RBAC in `osac-platform`
+14. Seed Quay pull secret in `osac-platform` (if using FBC nightly)
 
 See `scripts/bootstrap.sh` for the exact commands.
 
