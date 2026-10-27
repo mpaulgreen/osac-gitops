@@ -277,12 +277,7 @@ spec:
           - path: '**/*.app.json'
   templatePatch: |
     metadata:
-      name: >-
-        {{- if eq .scope.kind "tenant" -}}
-          {{ .scope.kind }}-{{ .scope.id }}-{{ .site }}-{{ .layer }}
-        {{- else -}}
-          {{ .scope.kind }}-{{ .site }}-{{ .layer }}
-        {{- end -}}
+      name: '{{ if eq .scope.kind "tenant" }}{{ .scope.kind }}-{{ .scope.id }}-{{ .site }}-{{ .layer }}{{ else }}{{ .scope.kind }}-{{ .site }}-{{ .layer }}{{ end }}'
   template:
     metadata:
       name: placeholder
