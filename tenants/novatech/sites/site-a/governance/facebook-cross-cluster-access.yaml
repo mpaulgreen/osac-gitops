@@ -1,6 +1,4 @@
 ---
-# Pass-through governance for cross-cluster consumers accessing the simulated model from site-b (site-b-cluster).
-# system:authenticated allows any consumer cluster SA to mint an API key on site-a (hub).
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
@@ -8,8 +6,8 @@ metadata:
   namespace: models-as-a-service
 spec:
   modelRefs:
-    - name: facebook-opt-125m-simulated
-      namespace: maas-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
   subjects:
     groups:
       - name: system:authenticated
@@ -24,8 +22,8 @@ spec:
     groups:
       - name: system:authenticated
   modelRefs:
-    - name: facebook-opt-125m-simulated
-      namespace: maas-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
       tokenRateLimits:
         - limit: 999999999
           window: 1m

@@ -5,13 +5,17 @@ metadata:
   name: scope-global
   namespace: openshift-gitops
 spec:
-  description: "OSAC intent plane — global scope (models, external models, provider recheck job)"
+  description: "OSAC intent plane — global scope (models, grid external models, provider recheck job)"
   sourceRepos:
     - "*"
   destinations:
-    - namespace: maas-models
+    - namespace: ai-grid-internal-models
       server: "*"
-    - namespace: maas-models
+    - namespace: ai-grid-internal-models
+      name: "*"
+    - namespace: models-as-a-service
+      server: "*"
+    - namespace: models-as-a-service
       name: "*"
     - namespace: external-models
       server: "*"

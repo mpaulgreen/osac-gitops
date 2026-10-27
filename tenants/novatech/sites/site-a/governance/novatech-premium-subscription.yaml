@@ -9,13 +9,13 @@ spec:
     groups:
       - name: novatech-premium-users
   modelRefs:
-    - name: facebook-opt-125m-simulated
-      namespace: maas-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
       tokenRateLimits:
         - limit: 50000
           window: 1m
-    - name: granite-remote
-      namespace: external-models
+    - name: smollm2-135m-instruct-grid
+      namespace: models-as-a-service
       tokenRateLimits:
         - limit: 50000
           window: 1m

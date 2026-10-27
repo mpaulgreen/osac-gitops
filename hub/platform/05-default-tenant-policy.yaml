@@ -8,19 +8,21 @@ metadata:
     osac.io/platform: "true"
   annotations:
     policy.open-cluster-management.io/description: >-
-      Creates the governance namespace and the single default tenant (B-14).
-      All OSAC tenants share this tenant, gateway and namespace; isolation is
-      through governance (subscriptions + auth policies), not tenant separation.
+      Creates the AITenant, MaasTenantConfig, Grid ExternalProvider,
+      and all governance/model/grid namespaces for the RHOAI 3.6 MaaS
+      platform. Replaces the 3.5.1 Tenant CR.
 spec:
   remediationAction: enforce
   disabled: false
+  hubTemplateOptions:
+    serviceAccountName: osac-hub-templating
   policy-templates:
-    # ── Governance namespace ────────────────────────────────────────────
+    # ── Namespaces ──────────────────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
-          name: osac-governance-namespace
+          name: osac-tenant-namespaces
         spec:
           remediationAction: enforce
           severity: low
@@ -33,13 +35,61 @@ spec:
                   name: models-as-a-service
                   labels:
                     osac.io/governance: "true"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: ai-tenants
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: ai-grid-internal-models
+                  labels:
+                    grid.opendatahub.io/allowed: "true"
+                    osac.io/models: "true"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: redhat-ai-grid
 
-    # ── Default tenant ──────────────────────────────────────────────────
+    # ── AITenant (replaces Tenant from 3.5.1) ───────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
-          name: osac-tenant-config
+          name: osac-aitenant-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: maas.opendatahub.io/v1alpha1
+                kind: AITenant
+                metadata:
+                  name: models-as-a-service
+                  namespace: ai-tenants
+                spec:
+                  gateway:
+                    name: maas-default-gateway
+                  oidc:
+                    accessTokenPurpose: access
+                    accessTokenPurposeClaim: token_use
+                    clientId: tenant-demo
+                    audience: tenant-demo
+                    issuerUrl: '{{hub printf "https://%s/realms/saas" (index (lookup "route.openshift.io/v1" "Route" "maas-db" "keycloak").status.ingress 0).host hub}}'
+
+    # ── MaasTenantConfig ────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-maas-tenant-config
         spec:
           remediationAction: enforce
           severity: low
@@ -47,31 +97,30 @@ spec:
             - complianceType: musthave
               objectDefinition:
                 apiVersion: maas.opendatahub.io/v1alpha1
-                kind: Tenant
+                kind: MaasTenantConfig
                 metadata:
                   name: default-tenant
                   namespace: models-as-a-service
                 spec:
-                  gatewayRef:
-                    name: maas-default-gateway
-                    namespace: openshift-ingress
-                  externalOIDC:
-                    clientId: osac-cli   #REPLACE-ME
-                    issuerUrl: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.identity-issuer" .ManagedClusterName) hub}}'
                   telemetry:
                     enabled: true
                     metrics:
-                      captureOrganization: true
+                      captureModelUsage: true
                       captureUser: true
                       captureGroup: true
-                      captureModelUsage: true
+                      captureOrganization: true
+                    logs:
+                      captureUser: true
+                      captureOrganization: true
 
-    # ── Model namespace ─────────────────────────────────────────────────
+    # ── Grid ExternalProvider ───────────────────────────────────────────
+    # In-cluster Grid gateway connection. The API key is a static
+    # placeholder — the grid gateway does not validate it for local calls.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
-          name: osac-model-namespace
+          name: osac-grid-external-provider
         spec:
           remediationAction: enforce
           severity: low
@@ -79,8 +128,29 @@ spec:
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
-                kind: Namespace
+                kind: Secret
                 metadata:
-                  name: maas-models
-                  labels:
-                    osac.io/models: "true"
+                  name: grid-maas-upstream
+                  namespace: models-as-a-service
+                type: Opaque
+                stringData:
+                  api-key: "dW51c2VkLWJ5LWNsdXN0ZXItbG9jYWwtZ3JpZA=="
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: inference.opendatahub.io/v1alpha1
+                kind: ExternalProvider
+                metadata:
+                  name: grid-provider
+                  namespace: models-as-a-service
+                  annotations:
+                    inference.opendatahub.io/port: "443"
+                    inference.opendatahub.io/tls: "true"
+                spec:
+                  auth:
+                    secretRef:
+                      name: grid-maas-upstream
+                    type: apikey
+                  endpoint: grid-gateway.redhat-ai-grid.svc.cluster.local
+                  provider: openai
+                  config:
+                    tls.caCertificates: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt

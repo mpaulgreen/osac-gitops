@@ -98,6 +98,8 @@ spec:
                       registriesNamespace: rhoai-model-registries
                     ogx:
                       managementState: Managed
+                    aiGrid:
+                      managementState: Managed
                     aipipelines:
                       managementState: Removed
                     feastoperator:

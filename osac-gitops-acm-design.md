@@ -14,27 +14,27 @@ Key topology facts. All tenants share the same inference clusters; multi-tenancy
 
 ---
 
-## 2. Out-of-Scope Infrastructure Components
+## 2. Infrastructure and Out-of-Scope Components
 
-The MaaS platform plane is designed to be delivered independently of the underlying
-infrastructure choices or cluster bootstrap process. It assumes the cluster exists
-and is operational; it does not prescribe how that cluster was built, what storage
-backend it uses, or which hardware accelerators are present.
+### 2.1 Infrastructure delivered by the platform plane (RHOAI 3.6)
 
-This separation means the platform plane can be applied to any conformant OpenShift
-cluster — bare-metal, cloud, or on-premises — without modification, as long as the
-necessary prerequisites are in place. The components below belong to the cluster
-bootstrap layer. They are consumed by the platform plane (e.g., GPU node labels are
-read by hardware profiles; NFD discovery feeds RHOAI scheduling), but the platform
-plane does not install, manage, or take opinions on them.
+Starting with RHOAI 3.6, three infrastructure components are managed as ACM policies
+within the platform plane, providing complete cluster management:
 
-The following components were identified in the AI Grid POC (`RHsyseng/ai-grid-policies`)
-and are explicitly **not part of this design**:
+| Component | Policy | Summary |
+|---|---|---|
+| **ODF (OpenShift Data Foundation)** | 15 | Namespace, OperatorGroup, Subscription (`stable-4.22`), StorageCluster with standalone MultiCloudGateway for ACM observability object storage |
+| **ACM (Advanced Cluster Management)** | 16 | Namespace, OperatorGroup, Subscription (`release-2.17`), MultiClusterHub, observability namespace, ObjectBucketClaim, Thanos bridge Job, MultiClusterObservability, governance and config-policy ClusterManagementAddOns |
+| **Submariner** | 17 | Broker namespace, Submariner Broker with Globalnet (242.0.0.0/8), globalnet-info ConfigMap, per-site ManagedClusterAddOn and SubmarinerConfig via managed-side templates |
+
+### 2.2 Out-of-scope components
+
+The following remain outside the platform plane:
 
 | Component | One-line summary | Why out of scope |
 |---|---|---|
 | **MetalLB** | Assigns routable LoadBalancer IPs to services on bare-metal/on-prem clusters via L2 or BGP. | Cluster bootstrap infrastructure (same layer as CNI). Needed only where no cloud load balancer exists (bare-metal or on-premises); this deployment runs on AWS and does not install it. |
-| **LVM Storage** | Provisions local persistent volumes from raw node disks using Linux LVM, exposed as a StorageClass. | Storage infrastructure; the platform plane assumes storage is already provided. Belongs with cluster prerequisites, not with MaaS policies. |
+| **LVM Storage** | Provisions local persistent volumes from raw node disks using Linux LVM, exposed as a StorageClass. | Storage infrastructure; ODF now covers object storage needs via Policy 15. LVM remains out of scope. |
 | **OpenShift Virtualization + Tenant Host role** | Runs KubeVirt VMs alongside containers and, combined with MCE, hosts per-tenant OpenShift control planes as pods. | Cluster lifecycle and hypervisor infrastructure — both explicitly out of scope. Closer to cluster provisioning than to the platform plane. |
 | **ZTP Delivery Patterns** | Wave-ordered, `PolicyGenerator`-based ACM policy delivery pipeline from the Telco RAN world. | Alternative delivery mechanism to Argo CD chosen in prescribed architecture in design. |
 | **Node Feature Discovery (NFD)** | Detects hardware features (CPU flags, PCIe devices, etc.) on each node and exposes them as node labels. | Cluster bootstrap infrastructure; a prerequisite on sites that serve GPU models, where the GPU operator relies on it. The platform plane does not install or configure NFD. Its hardware profiles select GPU nodes by `nvidia.com/gpu.present`, a label the GPU operator sets. |
@@ -52,21 +52,35 @@ evaluates a policy.
 ```
 osac-gitops/
 ├── hub/
-│   ├── platform/                  # ACM Policies 01–08 + PlacementBindings
-│   │   ├── 01-operators-policy.yaml
-│   │   ├── 02-platform-config-policy.yaml
-│   │   ├── 03-gateway-policy.yaml
-│   │   ├── 04-database-policy.yaml
-│   │   ├── 05-default-tenant-policy.yaml
+│   ├── platform/                  # ACM Policies 00–17 + PlacementBindings
+│   │   ├── 00-prerequisites-policy.yaml   # FBC catalog, image mirrors, pull secret
+│   │   ├── 01-operators-policy.yaml       # + CNPG, ESO, Redis operators
+│   │   ├── 02-platform-config-policy.yaml # + AI Grid in DSC
+│   │   ├── 03-gateway-policy.yaml         # namespace-restricted listeners
+│   │   ├── 04-database-policy.yaml        # CloudNativePG (replaces StatefulSet)
+│   │   ├── 05-default-tenant-policy.yaml  # AITenant, MaasTenantConfig, Grid ExternalProvider
 │   │   ├── 06-hardware-profiles-policy.yaml
 │   │   ├── 07-service-tls-policy.yaml
-│   │   └── 08-external-model-secrets-policy.yaml
+│   │   ├── 08-external-model-secrets-policy.yaml
+│   │   ├── 09-keycloak-policy.yaml        # Keycloak full stack (hub-only)
+│   │   ├── 10-redis-limitador-policy.yaml # Redis + Limitador rate limiting
+│   │   ├── 11-grid-network-policies-policy.yaml
+│   │   ├── 12-grid-enrollment-policy.yaml # hub-only: peers, ServiceExport
+│   │   ├── 13-grid-network-policy.yaml    # GridNetwork CR
+│   │   ├── 14-observability-policy.yaml   # ScrapeConfigs, RBAC
+│   │   ├── 15-odf-policy.yaml            # ODF operator + StorageCluster
+│   │   ├── 16-acm-policy.yaml            # ACM operator + MCH + MCO
+│   │   ├── 17-submariner-policy.yaml      # Broker + per-site addons
+│   │   └── keycloak-realms/               # Realm JSON files for Policy 09
+│   │       ├── saas-realm.json
+│   │       ├── grid-tenant-1-idp-realm.json
+│   │       └── grid-tenant-2-idp-realm.json
 │   ├── platform-sites/            # Per-site parameters + placement
-│   │   ├── namespace.yaml         # osac-platform namespace
-│   │   ├── managedclustersetbinding.yaml  # binds the default cluster set
-│   │   ├── site-params.yaml       # osac-site-params ConfigMap
-│   │   └── placement.yaml         # Placement selecting platform sites
-│   └── projects/                  # Argo CD AppProjects (applied manually once)
+│   │   ├── namespace.yaml
+│   │   ├── managedclustersetbinding.yaml
+│   │   ├── site-params.yaml       # osac-site-params ConfigMap (expanded for 3.6)
+│   │   └── placement.yaml
+│   └── projects/                  # Argo CD AppProjects
 │       ├── platform-policies.yaml
 │       ├── scope-global.yaml
 │       └── scope-tenant-novatech.yaml
@@ -74,19 +88,26 @@ osac-gitops/
 ├── global/
 │   └── sites/
 │       ├── site-a/
-│       │   ├── models/            # Local model (CPU simulator)
-│       │   └── external-models/   # ExternalProvider, ExternalModel, MaaSModelRef, recheck job
+│       │   ├── models/            # LLMInferenceService (ai-grid-internal-models)
+│       │   ├── grid-models/       # ExternalModel + MaaSModelRef (models-as-a-service)
+│       │   └── external-models/   # Cross-site ExternalProvider + ExternalModel
 │       └── site-b/
-│           ├── models/            # Local model (Granite GPU)
-│           └── external-models/   # ExternalProvider, ExternalModel, MaaSModelRef, recheck job
+│           ├── models/
+│           ├── grid-models/
+│           └── external-models/
 │
-└── tenants/
-    └── novatech/
-        └── sites/
-            ├── site-a/
-            │   └── governance/    # MaaSSubscription, MaaSAuthPolicy
-            └── site-b/
-                └── governance/    # MaaSSubscription, MaaSAuthPolicy
+├── tenants/
+│   └── novatech/
+│       └── sites/
+│           ├── site-a/
+│           │   └── governance/    # MaaSSubscription, MaaSAuthPolicy
+│           └── site-b/
+│               └── governance/
+│
+└── scripts/                       # Bootstrap automation
+    ├── bootstrap.sh               # Hub setup (replaces manual install steps)
+    ├── import-managed-cluster.sh  # Spoke onboarding
+    └── smoke-test.sh              # End-to-end verification
 ```
 
 Each layer directory has a descriptor beside it, named `<layer>.app.json` (for example
@@ -125,9 +146,11 @@ the hub's built-in `in-cluster` name and spoke cluster secrets created by ACM.
 |---|---|---|---|
 | `global-hub-platform` | `in-cluster` (hub) | `platform-policies` | `openshift-gitops` |
 | `global-hub-platform-sites` | `in-cluster` (hub) | `platform-policies` | `openshift-gitops` |
-| `global-site-a-models` | `in-cluster` (hub) | `scope-global` | `maas-models` |
+| `global-site-a-models` | `in-cluster` (hub) | `scope-global` | `ai-grid-internal-models` |
+| `global-site-a-grid-models` | `in-cluster` (hub) | `scope-global` | `models-as-a-service` |
 | `global-site-a-external-models` | `in-cluster` (hub) | `scope-global` | `external-models` |
-| `global-site-b-models` | `site-b` | `scope-global` | `maas-models` |
+| `global-site-b-models` | `site-b` | `scope-global` | `ai-grid-internal-models` |
+| `global-site-b-grid-models` | `site-b` | `scope-global` | `models-as-a-service` |
 | `global-site-b-external-models` | `site-b` | `scope-global` | `external-models` |
 | `tenant-novatech-site-a-governance` | `in-cluster` (hub) | `scope-tenant-novatech` | `models-as-a-service` |
 | `tenant-novatech-site-b-governance` | `site-b` | `scope-tenant-novatech` | `models-as-a-service` |
@@ -144,10 +167,12 @@ carries the results to the sites.
 
 **`scope-global`** — intent plane, global scope. Allows `LLMInferenceService`,
 `MaaSModelRef`, `ExternalProvider`, `ExternalModel`, and the recheck job's
-`ServiceAccount`, `Role`, `RoleBinding` and `CronJob` in the `maas-models` and
-`external-models` namespaces, plus the cluster-scoped `Namespace`. `Secret` is not
-allowed: the API key Secret is delivered by Policy 08, not by Argo CD. Targets both
-`in-cluster` and spoke clusters by name.
+`ServiceAccount`, `Role`, `RoleBinding` and `CronJob` in `ai-grid-internal-models`,
+`models-as-a-service`, and `external-models` namespaces, plus the cluster-scoped
+`Namespace`. `Secret` is not allowed: the API key Secret is delivered by Policy 08,
+not by Argo CD. The `grid-models` layer delivers Grid ExternalModels and their
+MaaSModelRefs to `models-as-a-service`. Targets both `in-cluster` and spoke clusters
+by name.
 
 **`scope-tenant-novatech`** — intent plane, tenant scope. Allows only `MaaSSubscription`
 and `MaaSAuthPolicy`, and only in `models-as-a-service`. All tenants share that
@@ -183,18 +208,28 @@ them, replicates them to each managed cluster's namespace on the hub, and delive
 to the spoke cluster's ACM agent. The agent enforces them locally. Argo CD never touches
 a spoke directly for platform objects.
 
-### 4.2 Policy catalogue
+### 4.2 Policy catalogue (RHOAI 3.6)
 
 | Policy | Content | Delivery |
 |---|---|---|
-| **01 Operators** | OLM Subscriptions (with Namespaces and OperatorGroups) for RHOAI, RHCL, cert-manager, LWS, OpenTelemetry and the Cluster Observability Operator. Also removes RHCL-family Subscriptions left in `openshift-operators` | All platform sites |
-| **02 Platform config** | User workload monitoring, DSCInitialization, DataScienceCluster with MaaS enabled, `OdhDashboardConfig` | All platform sites |
-| **03 Gateway** | GatewayClasses, Gateways (`maas-default-gateway`, `openshift-ai-inference`), Kuadrant, Authorino (listener TLS on from the start), the MaaS gateway Route | All platform sites |
-| **04 Database** | PostgreSQL, site-generated credentials (`randAlphaNum` in managed-side template) | All platform sites |
-| **05 Default tenant** | Tenant CR, governance and model namespaces (`models-as-a-service`, `maas-models`) | All platform sites |
+| **00 Prerequisites** | FBC CatalogSource (`rhoai-catalog-dev`), ImageDigestMirrorSet (`registry.redhat.io/rhoai` → `quay.io/rhoai`), pull secret distribution, global pull-secret merge | All platform sites |
+| **01 Operators** | OLM Subscriptions for RHOAI (parameterised source), RHCL, cert-manager, LWS, OTel, COO, CloudNativePG, External Secrets Operator, Redis Operator. Removes stale RHCL subscriptions | All platform sites |
+| **02 Platform config** | User workload monitoring, DSCInitialization, DataScienceCluster with MaaS + AI Grid enabled, `OdhDashboardConfig` | All platform sites |
+| **03 Gateway** | GatewayClasses, Gateways (`maas-default-gateway`, `openshift-ai-inference`) with namespace-restricted `allowedRoutes`, Kuadrant, Authorino, MaaS gateway Route | All platform sites |
+| **04 Database** | CloudNativePG Cluster `maas-db` (3 instances, auto-generated credentials), DB connection URL secret derived from CNPG secret | All platform sites |
+| **05 Default tenant** | AITenant (replaces Tenant), MaasTenantConfig, Grid ExternalProvider, namespaces (`models-as-a-service`, `ai-tenants`, `ai-grid-internal-models`, `redhat-ai-grid`) | All platform sites |
 | **06 Hardware profiles** | `HardwareProfile` CRs per site, read from `osac-site-params` via hub template | All platform sites |
-| **07 Service TLS** | Service annotations for `authorino-server-cert` and inference gateway serving cert; Authorino Deployment env patch | All platform sites |
-| **08 External model secrets** | ExternalProvider API key Secret distributed to consumer clusters via hub template `fromSecret`, only once the hub Secret exists; "Awaiting credential" until then | Per-direction Placements |
+| **07 Service TLS** | Service annotations for serving certs; Authorino Deployment env patch | All platform sites |
+| **08 External model secrets** | ExternalProvider API key Secret distributed via hub template `fromSecret`, only once the hub Secret exists | Per-direction Placements |
+| **09 Keycloak** | CNPG DatabaseRole + Database, ESO Password generators + ExternalSecrets, cert-manager signing keys, Keycloak Deployment + Service, Route, realm import ConfigMap, public URL distribution | Hub-only |
+| **10 Redis + Limitador** | 3-node RedisReplication with Sentinel, Redis connection secret in `kuadrant-system`, Limitador CR, NetworkPolicy | All platform sites |
+| **11 Grid NetworkPolicies** | NetworkPolicies in `ai-grid-internal-models` for operator metrics scraping and gateway backend access | All platform sites |
+| **12 Grid enrollment** | `grid-enrollment-invites` namespace, ServiceExport, declared peer GridSite + InferenceProvider | Hub-only |
+| **13 GridNetwork** | GridNetwork CR in `redhat-ai-grid` with per-site parameters from hub templates | All platform sites |
+| **14 Observability** | ScrapeConfigs (5), ServiceAccounts + ClusterRoleBindings for metrics readers, NetworkPolicy for ACM OTel collector | All platform sites |
+| **15 ODF** | openshift-storage namespace, OperatorGroup, ODF Subscription (`stable-4.22`), StorageCluster with standalone MCG | All platform sites |
+| **16 ACM** | open-cluster-management namespace, OperatorGroup, ACM Subscription (`release-2.17`), MultiClusterHub, observability namespace, OBC for Thanos, bridge Job, MultiClusterObservability, policy addons | Hub-only |
+| **17 Submariner** | default-broker namespace, Broker with Globalnet, globalnet-info ConfigMap, per-site ManagedClusterAddOn + SubmarinerConfig | Hub-only (broker) + per-site (addons) |
 
 ### 4.3 Per-site parameterisation
 
@@ -210,20 +245,21 @@ Keys are prefixed by the ACM `ManagedClusterName` (e.g., `local-cluster.rhoai-ch
 `site-b.hardware-profiles`). Adding a new site requires adding its key block to the
 ConfigMap and its name to the platform placement — no new policy files needed.
 
-### 4.4 Database secret generation
+### 4.4 Database credential generation (RHOAI 3.6)
 
-Policy 04 uses a Sprig `randAlphaNum` call inside a **managed-side** (not hub-side)
-policy template. This means:
-- The password is generated on each site, by that site's own policy controller.
-- The value is not in Git and not in the hub Policy: the replicated policy holds the
-  template text, not the password.
-- On the first evaluation the template finds no Secret and generates a random value. On
-  later evaluations it looks up the existing Secret and reuses its password, so the value
-  does not change.
-- ACM censors Secret diffs from policy status by default.
+Policy 04 uses CloudNativePG (CNPG) instead of a StatefulSet PostgreSQL. CNPG
+auto-generates database credentials:
+- The CNPG operator creates the `maas-db-app` Secret on each site when the Cluster
+  CR is reconciled. No `randAlphaNum` templates are needed.
+- A managed-side template reads the CNPG-generated secret and derives the connection
+  URL secret (`maas-db-config`) in `redhat-ai-gateway-infra`.
+- The value is not in Git and not in the hub Policy.
+- CNPG manages its own credential lifecycle including rotation.
 
-Hub-side generation (hub template producing a secret value) is forbidden because the
-value would be embedded in the replicated policy body and visible on the hub.
+Keycloak secrets (Policy 09) are generated by the External Secrets Operator (ESO)
+using `Password` generators on the hub. ESO creates Kubernetes Secrets from
+`ExternalSecret` resources without any values touching Git. Keycloak signing
+certificates are generated by cert-manager (self-signed Issuer).
 
 ---
 
@@ -254,9 +290,14 @@ hand or stored in Git.
 ### 5.2 Scope structure
 
 **Global scope** applies objects that belong to the MaaS platform but are not
-tenant-specific: model definitions (`LLMInferenceService` with its `MaaSModelRef`) and
-cross-site model references (`ExternalProvider`, `ExternalModel`, `MaaSModelRef`, and the
-provider recheck job). These land in `maas-models` and `external-models` namespaces.
+tenant-specific. Three layers:
+- **models**: `LLMInferenceService` + `MaaSModelRef` in `ai-grid-internal-models`
+  (the namespace where the Grid operator watches for models, labelled
+  `grid.opendatahub.io/allowed: "true"`)
+- **grid-models**: Grid `ExternalModel` + `MaaSModelRef` in `models-as-a-service`
+  (bridges local models to the MaaS gateway through the `grid-provider` ExternalProvider)
+- **external-models**: Cross-site `ExternalProvider`, `ExternalModel`, `MaaSModelRef`
+  and the provider recheck job in `external-models`
 
 **Tenant scope** applies objects that are specific to a tenant: subscriptions
 (`MaaSSubscription`) and auth policies (`MaaSAuthPolicy`). These land in
@@ -285,20 +326,36 @@ plane needs for a new site. The site's intent layers are added separately (secti
 
 ```
 osac-site-params ConfigMap
-  local-cluster.cluster-domain:  apps.<hub-cluster-domain>
-  local-cluster.identity-issuer: https://keycloak.apps.<hub-cluster-domain>/realms/osac
-  local-cluster.rhoai-channel:   stable-3.5
+  local-cluster.cluster-domain:    apps.<hub-cluster-domain>
+  local-cluster.identity-issuer:   https://keycloak.apps.<hub-cluster-domain>/realms/saas
+  local-cluster.rhoai-channel:     stable-3.6
+  local-cluster.rhoai-source:      rhoai-catalog-dev
+  local-cluster.rhoai-fbc-image:   quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:...
   local-cluster.hardware-profiles: [cpu-only]
+  local-cluster.grid-enabled:      "true"
+  local-cluster.grid-site-name:    site-a
+  local-cluster.grid-network-name: grid
+  local-cluster.grid-gateway-name: grid-gateway
+  local-cluster.grid-namespace:    redhat-ai-grid
 
-  site-b.cluster-domain:  apps.<spoke-cluster-domain>
-  site-b.identity-issuer: https://keycloak.apps.<hub-cluster-domain>/realms/osac
-  site-b.rhoai-channel:   stable-3.5
+  site-b.cluster-domain:    apps.<spoke-cluster-domain>
+  site-b.identity-issuer:   https://keycloak.apps.<hub-cluster-domain>/realms/saas
+  site-b.rhoai-channel:     stable-3.6
+  site-b.rhoai-source:      rhoai-catalog-dev
+  site-b.rhoai-fbc-image:   quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:...
   site-b.hardware-profiles: [nvidia-a10g-24gb, cpu-only]
+  site-b.grid-enabled:      "true"
+  site-b.grid-site-name:    site-b
+  site-b.grid-network-name: grid
+  site-b.grid-gateway-name: grid-gateway
+  site-b.grid-namespace:    redhat-ai-grid
 ```
 
-All sites share the same Keycloak identity issuer (on the hub, which hosts Keycloak). Each site has
-its own `cluster-domain` so that gateway routes, serving-cert Services, and model
-URLs are cluster-specific.
+All sites share the same Keycloak identity issuer (on the hub, which hosts Keycloak).
+Each site has its own `cluster-domain` so that gateway routes, serving-cert Services,
+and model URLs are cluster-specific. The `rhoai-source` key selects between `rhoai-catalog-dev`
+(FBC nightly) and `redhat-operators` (GA) per site. The `grid-*` keys parameterise
+GridNetwork, grid enrollment, and related policies.
 
 ---
 
@@ -428,21 +485,61 @@ Add the site name to the relevant `Placement` in Policy 08, and add the site's
 `external-models` layer with its descriptor. The policy distributes the upstream API key
 to the new site once the key is registered on the hub.
 
-No new policy files are needed; policies 01–07 are shared. No cluster credentials
+No new policy files are needed; policies 00–17 are shared. No cluster credentials
 are committed to Git. The Git changes are the ConfigMap key block, the placement name
-additions, and the site's intent layers with their descriptors.
+additions, and the site's intent layers (models, grid-models, governance) with their
+descriptors.
 
 ---
 
-## 9. Security Model
+## 9. Bootstrap Automation
+
+The `scripts/` directory provides automation for hub setup, spoke onboarding, and
+end-to-end verification:
+
+| Script | Purpose |
+|---|---|
+| `bootstrap.sh` | Hub setup: installs GitOps operator, configures Argo CD RBAC, applies AppProjects, creates ACM plumbing, deploys ApplicationSet, creates hub-only Placement + hub-templating RBAC, optionally seeds FBC pull secret, waits for sync |
+| `import-managed-cluster.sh` | Spoke onboarding: creates ManagedCluster, joins via `clusteradm`, accepts, enables application-manager addon, waits for Argo cluster secret |
+| `smoke-test.sh` | E2E verification: gets JWT from Keycloak, mints API key, runs inference, tests rate limiting, cleans up |
+
+### 9.1 Hub bootstrap flow
+
+```
+bootstrap.sh
+  │
+  ├── Install GitOps operator (bootstrap/)
+  ├── Wait for CRDs
+  ├── Argo CD RBAC (cluster-admin + policy-admin)
+  ├── Patch controller memory
+  ├── Apply AppProjects
+  ├── ACM plumbing (ManagedClusterSetBinding, GitOpsCluster, Placement)
+  ├── Git repo secret (from gh auth token)
+  ├── Deploy osac-layers ApplicationSet
+  ├── Hub-only Placement + hub-templating SA/RBAC
+  ├── Seed Quay pull secret (optional, --seed-pull-secret)
+  └── Wait for all Applications to sync
+```
+
+See `install.md` for the full user-facing guide.
+
+---
+
+## 10. Security Model
 
 **No secrets in Git.** The repository contains no credential values. Secrets fall into
 three categories:
 
 | Category | How managed |
 |---|---|
-| Database passwords | Generated on each site by a managed-side ACM template (`randAlphaNum`); not in Git and not in the hub Policy |
+| Database credentials | Auto-generated by CloudNativePG operator on each site; not in Git and not in the hub Policy |
+| Keycloak DB + app secrets | Generated by ESO Password generators on the hub; ExternalSecret resources are in Git, values are not |
+| Keycloak signing certificates | Generated by cert-manager (self-signed Issuer) on the hub; Certificate resources are in Git, keys are not |
+| Quay pull secret (FBC nightly) | Manually seeded on hub in `osac-platform/rhoai-quay-pull-secret`; distributed by Policy 00 hub template |
 | External API keys (cross-site) | Minted once by operator, stored in hub namespace (`osac-platform`), distributed by Policy 08 hub template (ACM encrypts the value in the replicated policy); never in Git |
+| Grid identity / CA | Generated by Grid enrollment operator |
+| Grid dummy API key | In Policy 05 (static placeholder for in-cluster Grid ExternalProvider) |
+| Redis connection URL | In Policy 10 (no auth currently) |
 | Service TLS certificates | Minted by OpenShift service-CA from Service annotation; the annotation is in Git, the certificate is not |
 
 **Repository access.** Argo CD is the only component that reads the repository. ACM reads

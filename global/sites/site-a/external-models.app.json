@@ -8,5 +8,5 @@
   "project": "scope-global",
   "manifestPath": "global/sites/site-a/external-models",
   "namespace": "external-models",
-  "targetRevision": "main"
+  "targetRevision": "feature/rhoai-3.6"
 }

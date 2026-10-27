@@ -1,15 +1,13 @@
 ---
-# Pass-through governance for cross-cluster consumers accessing Granite from site-a (hub).
-# system:authenticated allows any consumer cluster SA to mint an API key on site-b.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
-  name: granite-cross-cluster-access
+  name: facebook-cross-cluster-access
   namespace: models-as-a-service
 spec:
   modelRefs:
-    - name: granite-3-1-8b-fp8
-      namespace: maas-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
   subjects:
     groups:
       - name: system:authenticated
@@ -17,15 +15,15 @@ spec:
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
-  name: granite-cross-cluster-sub
+  name: facebook-cross-cluster-sub
   namespace: models-as-a-service
 spec:
   owner:
     groups:
       - name: system:authenticated
   modelRefs:
-    - name: granite-3-1-8b-fp8
-      namespace: maas-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
       tokenRateLimits:
         - limit: 999999999
           window: 1m

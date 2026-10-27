@@ -8,5 +8,5 @@
   "project": "scope-tenant-novatech",
   "manifestPath": "tenants/novatech/sites/site-b/governance",
   "namespace": "models-as-a-service",
-  "targetRevision": "main"
+  "targetRevision": "feature/rhoai-3.6"
 }

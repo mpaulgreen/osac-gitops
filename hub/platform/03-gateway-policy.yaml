@@ -92,7 +92,15 @@ spec:
                       hostname: 'maas.{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.cluster-domain" .ManagedClusterName) hub}}'
                       allowedRoutes:
                         namespaces:
-                          from: All
+                          from: Selector
+                          selector:
+                            matchExpressions:
+                              - key: kubernetes.io/metadata.name
+                                operator: In
+                                values:
+                                  - openshift-ingress
+                                  - models-as-a-service
+                                  - redhat-ai-gateway-infra
                       tls:
                         certificateRefs:
                           - group: ""
@@ -104,7 +112,15 @@ spec:
                       protocol: HTTPS
                       allowedRoutes:
                         namespaces:
-                          from: All
+                          from: Selector
+                          selector:
+                            matchExpressions:
+                              - key: kubernetes.io/metadata.name
+                                operator: In
+                                values:
+                                  - openshift-ingress
+                                  - models-as-a-service
+                                  - redhat-ai-gateway-infra
                       tls:
                         certificateRefs:
                           - group: ""
@@ -137,7 +153,14 @@ spec:
                       protocol: HTTP
                       allowedRoutes:
                         namespaces:
-                          from: All
+                          from: Selector
+                          selector:
+                            matchExpressions:
+                              - key: kubernetes.io/metadata.name
+                                operator: In
+                                values:
+                                  - openshift-ingress
+                                  - ai-grid-internal-models
                     - name: https
                       port: 443
                       protocol: HTTPS
@@ -148,7 +171,14 @@ spec:
                             kind: Secret
                       allowedRoutes:
                         namespaces:
-                          from: All
+                          from: Selector
+                          selector:
+                            matchExpressions:
+                              - key: kubernetes.io/metadata.name
+                                operator: In
+                                values:
+                                  - openshift-ingress
+                                  - ai-grid-internal-models
 
     # ── Kuadrant ────────────────────────────────────────────────────────
     - objectDefinition:

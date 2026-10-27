@@ -1,0 +1,187 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-redis-limitador
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Provisions the Redis replication cluster for Limitador rate-limiting
+      storage: 3-node RedisReplication with Sentinel, the connection secret
+      in kuadrant-system, the Limitador CR pointing to Redis, and a
+      NetworkPolicy restricting Redis ingress.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── RedisReplication (3-node Sentinel cluster) ─────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-redis-replication
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: redis.redis.opstreelabs.in/v1beta2
+                kind: RedisReplication
+                metadata:
+                  name: limitador-redis
+                  namespace: limitador-redis
+                spec:
+                  clusterSize: 3
+                  livenessProbe:
+                    exec:
+                      command:
+                        - redis-cli
+                        - -h
+                        - 127.0.0.1
+                        - -p
+                        - "6379"
+                        - ping
+                    periodSeconds: 10
+                    timeoutSeconds: 3
+                    failureThreshold: 3
+                  readinessProbe:
+                    exec:
+                      command:
+                        - redis-cli
+                        - -h
+                        - 127.0.0.1
+                        - -p
+                        - "6379"
+                        - ping
+                    periodSeconds: 10
+                    timeoutSeconds: 3
+                    failureThreshold: 3
+                  redisConfig:
+                    dynamicConfig:
+                      - "maxmemory 6gb"
+                      - "maxmemory-policy noeviction"
+                  kubernetesConfig:
+                    image: registry.redhat.io/rhel9/redis-7@sha256:8e0c52a2f304473c1f62d1112e116e0e8d541ed9cbeea86f6ece3318146be105
+                    imagePullPolicy: IfNotPresent
+                    resources:
+                      requests:
+                        cpu: "1"
+                        memory: 2Gi
+                      limits:
+                        cpu: "4"
+                        memory: 8Gi
+                  storage:
+                    volumeClaimTemplate:
+                      spec:
+                        accessModes:
+                          - ReadWriteOnce
+                        resources:
+                          requests:
+                            storage: 10Gi
+                  sentinel:
+                    size: 3
+                    image: registry.redhat.io/rhel9/redis-7@sha256:8e0c52a2f304473c1f62d1112e116e0e8d541ed9cbeea86f6ece3318146be105
+                    imagePullPolicy: IfNotPresent
+                    resources:
+                      requests:
+                        cpu: 50m
+                        memory: 64Mi
+                      limits:
+                        cpu: 250m
+                        memory: 128Mi
+                  podSecurityContext:
+                    runAsNonRoot: true
+                    seccompProfile:
+                      type: RuntimeDefault
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop:
+                        - ALL
+                    runAsNonRoot: true
+                  affinity:
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 100
+                          podAffinityTerm:
+                            labelSelector:
+                              matchLabels:
+                                app: limitador-redis
+                                redis_setup_type: replication
+                            topologyKey: kubernetes.io/hostname
+                  topologySpreadConstraints:
+                    - maxSkew: 1
+                      topologyKey: kubernetes.io/hostname
+                      whenUnsatisfiable: ScheduleAnyway
+                      labelSelector:
+                        matchLabels:
+                          app: limitador-redis
+                          redis_setup_type: replication
+
+    # ── Redis connection secret + Limitador CR ─────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-limitador-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: limitador-redis
+                  namespace: kuadrant-system
+                type: Opaque
+                stringData:
+                  URL: "redis://limitador-redis-master.limitador-redis.svc.cluster.local:6379"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: limitador.kuadrant.io/v1alpha1
+                kind: Limitador
+                metadata:
+                  name: limitador
+                  namespace: kuadrant-system
+                spec:
+                  storage:
+                    redis:
+                      configSecretRef:
+                        name: limitador-redis
+
+    # ── NetworkPolicy ──────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-redis-network-policy
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: limitador-redis-isolation
+                  namespace: limitador-redis
+                spec:
+                  podSelector: {}
+                  policyTypes:
+                    - Ingress
+                  ingress:
+                    - from:
+                        - podSelector: {}
+                    - from:
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: kuadrant-system
+                          podSelector:
+                            matchLabels:
+                              app: limitador

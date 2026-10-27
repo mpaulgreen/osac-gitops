@@ -1,9 +1,11 @@
 {
   "schema": 1,
   "layers": {
-    "platform-sites": "0.1.0",
-    "platform": "0.1.0",
-    "models": "0.1.0",
-    "governance": "0.1.0"
+    "platform-sites": "0.2.0",
+    "platform": "0.2.0",
+    "models": "0.2.0",
+    "grid-models": "0.2.0",
+    "governance": "0.2.0",
+    "external-models": "0.2.0"
   }
 }

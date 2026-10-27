@@ -1,0 +1,383 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-acm
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Installs Advanced Cluster Management: operator namespace and
+      OperatorGroup, ACM Subscription, MultiClusterHub, observability
+      namespace, ObjectBucketClaim for Thanos storage, the Thanos bridge
+      Job that renders the object-storage secret from the OBC, and
+      MultiClusterObservability. Also deploys the governance-policy-framework
+      and config-policy-controller ClusterManagementAddOns.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Namespace + OperatorGroup ─────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-ns
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: open-cluster-management
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: open-cluster-management
+                  namespace: open-cluster-management
+                spec:
+                  targetNamespaces:
+                    - open-cluster-management
+
+    # ── ACM Subscription ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-subscription
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: acm-operator-subscription
+                  namespace: open-cluster-management
+                spec:
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  name: advanced-cluster-management
+                  channel: release-2.17
+                  installPlanApproval: Automatic
+
+    # ── MultiClusterHub ───────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-multiclusterhub
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operator.open-cluster-management.io/v1
+                kind: MultiClusterHub
+                metadata:
+                  name: multiclusterhub
+                  namespace: open-cluster-management
+                spec: {}
+
+    # ── Observability Namespace ───────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-observability-ns
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: open-cluster-management-observability
+
+    # ── ObjectBucketClaim for Thanos ──────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-thanos-obc
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: objectbucket.io/v1alpha1
+                kind: ObjectBucketClaim
+                metadata:
+                  name: acm-observability-thanos
+                  namespace: open-cluster-management-observability
+                spec:
+                  generateBucketName: acm-observability-thanos
+                  storageClassName: openshift-storage.noobaa.io
+
+    # ── Thanos bridge RBAC ────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-thanos-bridge-rbac
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: mco-thanos-bridge
+                  namespace: open-cluster-management-observability
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: mco-thanos-bridge
+                  namespace: open-cluster-management-observability
+                rules:
+                  - apiGroups: ["objectbucket.io"]
+                    resources: ["objectbucketclaims"]
+                    verbs: ["get", "list", "watch"]
+                  - apiGroups: ["core.objectbucket.io"]
+                    resources: ["objectbuckets"]
+                    verbs: ["get", "list"]
+                  - apiGroups: [""]
+                    resources: ["secrets"]
+                    verbs: ["get", "list", "create", "update", "patch"]
+                  - apiGroups: [""]
+                    resources: ["configmaps"]
+                    verbs: ["get", "list"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: mco-thanos-bridge
+                  namespace: open-cluster-management-observability
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: mco-thanos-bridge
+                subjects:
+                  - kind: ServiceAccount
+                    name: mco-thanos-bridge
+                    namespace: open-cluster-management-observability
+
+    # ── Thanos bridge Job ─────────────────────────────────────────────
+    # Waits for the OBC to bind, then renders the thanos-object-storage
+    # Secret from the OBC-generated credentials.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-thanos-bridge-job
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: batch/v1
+                kind: Job
+                metadata:
+                  name: mco-thanos-bridge
+                  namespace: open-cluster-management-observability
+                spec:
+                  backoffLimit: 3
+                  ttlSecondsAfterFinished: 3600
+                  template:
+                    spec:
+                      serviceAccountName: mco-thanos-bridge
+                      restartPolicy: Never
+                      containers:
+                        - name: bridge
+                          image: registry.redhat.io/openshift4/ose-cli
+                          command:
+                            - /bin/bash
+                            - -c
+                            - |
+                              set -euo pipefail
+                              NS="open-cluster-management-observability"
+                              OBC="acm-observability-thanos"
+                              SECRET="thanos-object-storage"
+
+                              echo "Waiting for OBC ${OBC} to bind (timeout 900s)"
+                              oc wait --for=jsonpath='{.status.phase}'=Bound \
+                                "objectbucketclaim/${OBC}" -n "${NS}" --timeout=900s
+
+                              read_secret() {
+                                oc get secret "${OBC}" -n "${NS}" \
+                                  -o jsonpath="{.data.$1}" | base64 -d
+                              }
+                              read_cm() {
+                                oc get configmap "${OBC}" -n "${NS}" \
+                                  -o jsonpath="{.data.$1}"
+                              }
+
+                              AK="$(read_secret AWS_ACCESS_KEY_ID)"
+                              SK="$(read_secret AWS_SECRET_ACCESS_KEY)"
+                              HOST="$(read_cm BUCKET_HOST)"
+                              PORT="$(read_cm BUCKET_PORT)"
+                              BUCKET="$(read_cm BUCKET_NAME)"
+                              EP="${HOST}:${PORT}"
+
+                              TMP="$(mktemp)"
+                              trap 'rm -f "${TMP}"' EXIT
+                              cat > "${TMP}" <<THANOS
+                              type: s3
+                              config:
+                                bucket: ${BUCKET}
+                                endpoint: ${EP}
+                                insecure: false
+                                access_key: ${AK}
+                                secret_key: ${SK}
+                                http_config:
+                                  tls_config:
+                                    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+                              THANOS
+
+                              oc create secret generic "${SECRET}" \
+                                --from-file=thanos.yaml="${TMP}" \
+                                -n "${NS}" --dry-run=client -o yaml | oc apply -f -
+
+                              echo "Secret ${SECRET} rendered for bucket ${BUCKET} at ${EP}"
+
+    # ── MultiClusterObservability ─────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-multiclusterobservability
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: observability.open-cluster-management.io/v1beta2
+                kind: MultiClusterObservability
+                metadata:
+                  name: observability
+                  namespace: open-cluster-management-observability
+                spec:
+                  instanceSize: minimal
+                  observabilityAddonSpec:
+                    interval: 60
+                  storageConfig:
+                    metricObjectStorage:
+                      name: thanos-object-storage
+                      key: thanos.yaml
+                    compactStorageSize: 101Gi
+                  advanced:
+                    retentionConfig:
+                      retentionResolutionRaw: 7d
+                      retentionResolution5m: 7d
+                      retentionResolution1h: 14d
+                    receive:
+                      replicas: 2
+                  capabilities:
+                    platform:
+                      metrics:
+                        default:
+                          enabled: true
+                        ui:
+                          enabled: true
+                    userWorkloads:
+                      metrics:
+                        default:
+                          enabled: true
+
+    # ── Policy Addon Placement ────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-policy-addon-plumbing
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cluster.open-cluster-management.io/v1beta2
+                kind: ManagedClusterSetBinding
+                metadata:
+                  name: global
+                  namespace: open-cluster-management
+                spec:
+                  clusterSet: global
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cluster.open-cluster-management.io/v1beta1
+                kind: Placement
+                metadata:
+                  name: policy-addons-clusters
+                  namespace: open-cluster-management
+                spec:
+                  clusterSets:
+                    - global
+
+    # ── ClusterManagementAddOns ───────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-policy-addons
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: addon.open-cluster-management.io/v1beta1
+                kind: ClusterManagementAddOn
+                metadata:
+                  name: governance-policy-framework
+                spec:
+                  addOnMeta:
+                    description: Distributes policies and collects policy evaluation results.
+                    displayName: Governance Policy Framework Addon
+                  defaultConfigs:
+                    - group: addon.open-cluster-management.io
+                      name: __reserved_no_default__
+                      resource: addondeploymentconfigs
+                  installStrategy:
+                    type: Placements
+                    placements:
+                      - name: policy-addons-clusters
+                        namespace: open-cluster-management
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: addon.open-cluster-management.io/v1beta1
+                kind: ClusterManagementAddOn
+                metadata:
+                  name: config-policy-controller
+                spec:
+                  addOnMeta:
+                    description: Audits k8s resources and remediates violation based on configuration policies.
+                    displayName: Config Policy Addon
+                  defaultConfigs:
+                    - group: addon.open-cluster-management.io
+                      name: __reserved_no_default__
+                      resource: addondeploymentconfigs
+                  installStrategy:
+                    type: Placements
+                    placements:
+                      - name: policy-addons-clusters
+                        namespace: open-cluster-management

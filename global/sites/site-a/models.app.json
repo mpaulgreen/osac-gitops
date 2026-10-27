@@ -7,6 +7,6 @@
   "argoDestination": "in-cluster",
   "project": "scope-global",
   "manifestPath": "global/sites/site-a/models",
-  "namespace": "maas-models",
-  "targetRevision": "main"
+  "namespace": "ai-grid-internal-models",
+  "targetRevision": "feature/rhoai-3.6"
 }

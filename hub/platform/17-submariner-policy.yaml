@@ -1,0 +1,116 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-submariner
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Provisions Submariner cross-cluster networking: the default-broker
+      namespace, the Submariner Broker with Globalnet enabled, the
+      globalnet-info ConfigMap, and per-site ManagedClusterAddOn +
+      SubmarinerConfig deployed via hub templates.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Broker namespace ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-broker-ns
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: default-broker
+
+    # ── Submariner Broker ─────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-broker
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: submariner.io/v1alpha1
+                kind: Broker
+                metadata:
+                  name: submariner-broker
+                  namespace: default-broker
+                  labels:
+                    cluster.open-cluster-management.io/backup: submariner
+                spec:
+                  globalnetEnabled: true
+                  globalnetCIDRRange: 242.0.0.0/8
+                  defaultGlobalnetClusterSize: 65536
+
+    # ── Globalnet info ConfigMap ──────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-globalnet-info
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: submariner-globalnet-info
+                  namespace: default-broker
+                  labels:
+                    cluster.open-cluster-management.io/backup: submariner
+                    component: submariner-globalnet
+                data:
+                  globalnetEnabled: "true"
+                  globalnetCidrRange: '"242.0.0.0/8"'
+                  globalnetClusterSize: "65536"
+
+    # ── Per-site Submariner addon + config ────────────────────────────
+    # Hub template: creates ManagedClusterAddOn and SubmarinerConfig in
+    # the managed cluster's namespace on the hub.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-site-addon
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: addon.open-cluster-management.io/v1alpha1
+                kind: ManagedClusterAddOn
+                metadata:
+                  name: submariner
+                  namespace: '{{ .ManagedClusterName }}'
+                spec:
+                  installNamespace: submariner-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: submarineraddon.open-cluster-management.io/v1alpha1
+                kind: SubmarinerConfig
+                metadata:
+                  name: submariner
+                  namespace: '{{ .ManagedClusterName }}'
+                spec:
+                  loadBalancerEnable: true
+                  gatewayConfig:
+                    gateways: 2

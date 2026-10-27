@@ -1,0 +1,49 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-grid-network
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Creates the per-site GridNetwork CR in redhat-ai-grid. Signal transport
+      is poll mode, peer trust is SPIFFE. The grid operator self-signs a CA
+      when the TLS secret refs do not yet exist, which bootstraps trust for
+      new sites before enrollment completes.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-gridnetwork-cr
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: GridNetwork
+                metadata:
+                  name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
+                spec:
+                  signalTransport:
+                    mode: poll
+                  peerTrust:
+                    mode: spiffe
+                  tls:
+                    siteSecretRef:
+                      name: grid-site-identity
+                      namespace: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-namespace" .ManagedClusterName) hub}}'
+                    caSecretRef:
+                      name: grid-ca
+                      namespace: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-namespace" .ManagedClusterName) hub}}'
+                  consumerGateways:
+                    - name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-gateway-name" .ManagedClusterName) hub}}'
+                      namespace: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-namespace" .ManagedClusterName) hub}}'
+                      siteName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-site-name" .ManagedClusterName) hub}}'

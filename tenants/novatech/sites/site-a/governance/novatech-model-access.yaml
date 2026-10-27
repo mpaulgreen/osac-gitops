@@ -6,10 +6,10 @@ metadata:
   namespace: models-as-a-service
 spec:
   modelRefs:
-    - name: facebook-opt-125m-simulated
-      namespace: maas-models
-    - name: granite-remote
-      namespace: external-models
+    - name: facebook-opt-125m-grid
+      namespace: models-as-a-service
+    - name: smollm2-135m-instruct-grid
+      namespace: models-as-a-service
   subjects:
     groups:
       - name: novatech-free-users

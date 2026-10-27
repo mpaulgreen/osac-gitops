@@ -1,0 +1,259 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-observability
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Configures observability for the MaaS platform: ScrapeConfigs for
+      grid, grid-operator, epp, vllm, and rhai metrics; ServiceAccounts
+      and ClusterRoleBindings for metrics readers; NetworkPolicy for
+      ACM observability agents to reach the RHOAI OTel collector.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Metrics reader RBAC ────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-observability-rbac
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # EPP metrics reader
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: grid-epp-metrics-reader
+                  namespace: redhat-ai-grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-epp-metrics-reader-token
+                  namespace: redhat-ai-grid
+                  annotations:
+                    kubernetes.io/service-account.name: grid-epp-metrics-reader
+                type: kubernetes.io/service-account-token
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: grid-epp-metrics-reader
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: kserve-metrics-reader-cluster-role
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-epp-metrics-reader
+                    namespace: redhat-ai-grid
+            # UWM federate reader
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: grid-uwm-federate-reader
+                  namespace: open-cluster-management-observability
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-uwm-federate-reader-token
+                  namespace: open-cluster-management-observability
+                  annotations:
+                    kubernetes.io/service-account.name: grid-uwm-federate-reader
+                type: kubernetes.io/service-account-token
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: grid-uwm-federate-reader
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: cluster-monitoring-view
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-uwm-federate-reader
+                    namespace: open-cluster-management-observability
+
+    # ── ScrapeConfigs ──────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-observability-scrapeconfigs
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            # Grid gateway metrics
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: grid-metrics
+                  namespace: redhat-ai-grid
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: grid-metrics
+                  metricsPath: /metrics
+                  scrapeInterval: 30s
+                  scheme: HTTPS
+                  metricRelabelings:
+                    - sourceLabels: [cluster]
+                      regex: (.+)
+                      targetLabel: backend
+                      action: replace
+                  tlsConfig:
+                    ca:
+                      configMap:
+                        name: openshift-service-ca.crt
+                        key: service-ca.crt
+                    serverName: grid-gateway-metrics.redhat-ai-grid.svc
+                  staticConfigs:
+                    - targets:
+                        - grid-gateway-metrics.redhat-ai-grid.svc:9443
+            # Grid operator metrics
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: grid-operator-metrics
+                  namespace: redhat-ai-grid
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: grid-operator-metrics
+                  metricsPath: /metrics
+                  scrapeInterval: 30s
+                  scheme: HTTPS
+                  tlsConfig:
+                    ca:
+                      configMap:
+                        name: openshift-service-ca.crt
+                        key: service-ca.crt
+                    serverName: grid-operator-metrics.redhat-ai-grid.svc
+                  staticConfigs:
+                    - targets:
+                        - grid-operator-metrics.redhat-ai-grid.svc:9090
+            # EPP metrics
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: epp-metrics
+                  namespace: redhat-ai-grid
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: epp-metrics
+                  metricsPath: /metrics
+                  scrapeInterval: 30s
+                  scheme: HTTP
+                  authorization:
+                    credentials:
+                      name: grid-epp-metrics-reader-token
+                      key: token
+                  staticConfigs:
+                    - targets:
+                        - facebook-opt-125m-epp-service.ai-grid-internal-models.svc:9090
+            # RHAI metrics (OTel collector)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: rhai-metrics
+                  namespace: open-cluster-management-observability
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: rhai-metrics
+                  metricsPath: /metrics
+                  scheme: HTTP
+                  staticConfigs:
+                    - targets:
+                        - data-science-collector-monitoring.redhat-ods-monitoring.svc:8890
+            # vLLM metrics (federated from user-workload Prometheus)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: vllm-metrics
+                  namespace: open-cluster-management-observability
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: vllm-metrics
+                  metricsPath: /federate
+                  scrapeInterval: 30s
+                  scheme: HTTPS
+                  params:
+                    match[]:
+                      - '{__name__=~"vllm:.*"}'
+                  authorization:
+                    credentials:
+                      name: grid-uwm-federate-reader-token
+                      key: token
+                  tlsConfig:
+                    ca:
+                      configMap:
+                        name: openshift-service-ca.crt
+                        key: service-ca.crt
+                    serverName: prometheus-user-workload.openshift-user-workload-monitoring.svc
+                  staticConfigs:
+                    - targets:
+                        - prometheus-user-workload.openshift-user-workload-monitoring.svc:9092
+
+    # ── NetworkPolicy for ACM observability agents ─────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-observability-network-policy
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: allow-acm-rhai-metrics
+                  namespace: redhat-ods-monitoring
+                spec:
+                  podSelector:
+                    matchLabels:
+                      app.kubernetes.io/instance: redhat-ods-monitoring.data-science-collector
+                      app.kubernetes.io/component: opentelemetry-collector
+                  policyTypes:
+                    - Ingress
+                  ingress:
+                    - from:
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: open-cluster-management-agent-addon
+                      ports:
+                        - port: 8890
+                          protocol: TCP

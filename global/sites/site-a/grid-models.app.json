@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "scope": { "kind": "global" },
+  "target": "site",
+  "site": "site-a",
+  "layer": "grid-models",
+  "argoDestination": "in-cluster",
+  "project": "scope-global",
+  "manifestPath": "global/sites/site-a/grid-models",
+  "namespace": "models-as-a-service",
+  "targetRevision": "feature/rhoai-3.6"
+}

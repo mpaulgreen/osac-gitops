@@ -1,0 +1,88 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-odf
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Installs OpenShift Data Foundation: the openshift-storage namespace,
+      OperatorGroup, ODF Subscription, and a minimal StorageCluster with
+      standalone MultiCloudGateway for object storage (ACM observability).
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Namespace + OperatorGroup ─────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-odf-ns
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: openshift-storage
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: openshift-storage
+                  namespace: openshift-storage
+                spec:
+                  targetNamespaces:
+                    - openshift-storage
+
+    # ── ODF Subscription ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-odf-subscription
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: odf-operator-subscription
+                  namespace: openshift-storage
+                spec:
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  name: odf-operator
+                  channel: stable-4.22
+                  installPlanApproval: Automatic
+
+    # ── StorageCluster ────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-odf-storagecluster
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: ocs.openshift.io/v1
+                kind: StorageCluster
+                metadata:
+                  name: ocs-storagecluster
+                  namespace: openshift-storage
+                spec:
+                  multiCloudGateway:
+                    reconcileStrategy: standalone

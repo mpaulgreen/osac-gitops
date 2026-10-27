@@ -1,0 +1,24 @@
+---
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: smollm2-135m-instruct
+  namespace: models-as-a-service
+spec:
+  externalProviderRefs:
+    - apiFormat: openai-chat
+      path: /v1/completions
+      ref:
+        name: grid-provider
+      targetModel: smollm2-135m-instruct
+      weight: 1
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: smollm2-135m-instruct-grid
+  namespace: models-as-a-service
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: smollm2-135m-instruct

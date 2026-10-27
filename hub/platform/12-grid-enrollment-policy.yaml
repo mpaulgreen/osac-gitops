@@ -1,0 +1,94 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-grid-enrollment
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Hub-only: creates the grid-enrollment-invites namespace, ServiceExport
+      for the grid-enrollment service, and declared peers (GridSite +
+      InferenceProvider) for sites that cannot discover each other via gossip.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── grid-enrollment-invites namespace ───────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-namespace
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: grid-enrollment-invites
+
+    # ── ServiceExport for grid-enrollment ──────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-service-export
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: multicluster.x-k8s.io/v1alpha1
+                kind: ServiceExport
+                metadata:
+                  name: grid-enrollment
+                  namespace: redhat-ai-grid
+
+    # ── Declared peer: site-b ──────────────────────────────────────────
+    # The hub declares known peers so the grid gateway can route to them
+    # even without gossip. Add more GridSite + InferenceProvider pairs
+    # for additional sites.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-declared-peers
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: GridSite
+                metadata:
+                  name: site-b
+                  labels:
+                    grid.hexfusion.io/declared-peer: "true"
+                spec:
+                  gridNetworkRef: grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: InferenceProvider
+                metadata:
+                  name: peer-site-b-opt-125m
+                spec:
+                  gridNetworkRef: grid
+                  providerKind: vllm
+                  backendKind: local_model
+                  clusterName: peer-site-b
+                  endpoint: 'https://maas.{{hub fromConfigMap "osac-platform" "osac-site-params" "site-b.cluster-domain" hub}}:443/v1'
+                  siteSelector:
+                    matchLabels:
+                      grid.hexfusion.io/declared-peer: "true"
+                  models:
+                    - name: facebook-opt-125m
+                      capabilities:
+                        - text_generation

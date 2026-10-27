@@ -9,9 +9,9 @@ metadata:
   annotations:
     policy.open-cluster-management.io/description: >-
       Installs the operator stack required by the MaaS platform on each spoke.
-      Aligned with Ansible role ocp_4_20_ai_maas for RHOAI 3.5 GA on OCP 4.21.x.
-      Service Mesh is Sail-embedded — no OSSM subscription needed.
+      RHOAI 3.6 with AI Grid on OCP 4.20+. Service Mesh is Sail-embedded.
       RHCL auto-installs Authorino, Limitador, and DNS as OLM dependencies.
+      CloudNativePG, External Secrets, and Redis operators added for 3.6.
 spec:
   remediationAction: enforce
   disabled: false
@@ -165,7 +165,7 @@ spec:
                 spec:
                   channel: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.rhoai-channel" .ManagedClusterName) hub}}'
                   name: rhods-operator
-                  source: redhat-operators
+                  source: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.rhoai-source" .ManagedClusterName) hub}}'
                   sourceNamespace: openshift-marketplace
                   installPlanApproval: Automatic
 
@@ -274,3 +274,128 @@ spec:
                 metadata:
                   name: dns-operator-stable-redhat-operators-openshift-marketplace
                   namespace: openshift-operators
+
+    # ── Group E: CloudNativePG ─────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-e
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: cnpg-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: cnpg-system
+                  namespace: cnpg-system
+                spec:
+                  targetNamespaces: []
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: cloudnative-pg
+                  namespace: cnpg-system
+                spec:
+                  channel: stable-v1
+                  name: cloudnative-pg
+                  source: certified-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+
+    # ── Group F: External Secrets Operator ─────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-f
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: external-secrets-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: openshift-external-secrets-operator
+                  namespace: external-secrets-operator
+                spec:
+                  targetNamespaces: []
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: openshift-external-secrets-operator
+                  namespace: external-secrets-operator
+                spec:
+                  channel: stable-v1
+                  name: openshift-external-secrets-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: externalsecrets.operator.openshift.io/v1
+                kind: ExternalSecretsConfig
+                metadata:
+                  name: cluster
+                spec: {}
+
+    # ── Group G: Redis operator ────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-operators-group-g
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: limitador-redis
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: limitador-redis
+                  namespace: limitador-redis
+                spec:
+                  targetNamespaces:
+                    - limitador-redis
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: redis-operator
+                  namespace: limitador-redis
+                spec:
+                  channel: stable
+                  name: redis-operator
+                  source: community-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic

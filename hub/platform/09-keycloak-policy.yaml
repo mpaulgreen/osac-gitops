@@ -1,0 +1,693 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-keycloak
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Provisions the Keycloak identity provider on the hub cluster:
+      CNPG database role, ESO-generated secrets, cert-manager signing keys,
+      Deployment, Service, Route, realm import ConfigMap, and public URL
+      distribution to all sites. Hub-only deployment; public URL is all-sites.
+spec:
+  remediationAction: enforce
+  disabled: false
+  hubTemplateOptions:
+    serviceAccountName: osac-hub-templating
+  policy-templates:
+    # ── CNPG database role + database for Keycloak ─────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-db-role
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: postgresql.cnpg.io/v1
+                kind: DatabaseRole
+                metadata:
+                  name: keycloak
+                  namespace: maas-db
+                spec:
+                  cluster:
+                    name: maas-db
+                  name: keycloak
+                  login: true
+                  passwordSecret:
+                    name: keycloak-db
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: postgresql.cnpg.io/v1
+                kind: Database
+                metadata:
+                  name: keycloak
+                  namespace: maas-db
+                spec:
+                  cluster:
+                    name: maas-db
+                  name: keycloak
+                  owner: keycloak
+
+    # ── ESO password generators + ExternalSecrets ──────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-secrets
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            # Password generators
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: keycloak-db-password
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: keycloak-admin-password
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: keycloak-client-secret
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: grid-tenant-1-broker-client-secret
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: grid-tenant-2-broker-client-secret
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: grid-tenant-1-test-user-password
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: grid-tenant-2-test-user-password
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            # ExternalSecret: keycloak-db credentials
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: external-secrets.io/v1
+                kind: ExternalSecret
+                metadata:
+                  name: keycloak-db
+                  namespace: maas-db
+                spec:
+                  refreshPolicy: CreatedOnce
+                  refreshInterval: 0s
+                  target:
+                    name: keycloak-db
+                    creationPolicy: Owner
+                    deletionPolicy: Retain
+                    template:
+                      type: kubernetes.io/basic-auth
+                      engineVersion: v2
+                      mergePolicy: Merge
+                      data:
+                        username: keycloak
+                  dataFrom:
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: keycloak-db-password
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: password
+            # ExternalSecret: keycloak-secrets (admin, client, grid broker, test users)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: external-secrets.io/v1
+                kind: ExternalSecret
+                metadata:
+                  name: keycloak-secrets
+                  namespace: maas-db
+                spec:
+                  refreshPolicy: OnChange
+                  refreshInterval: 0s
+                  target:
+                    name: keycloak-secrets
+                    creationPolicy: Owner
+                    deletionPolicy: Retain
+                    template:
+                      type: Opaque
+                      engineVersion: v2
+                      mergePolicy: Merge
+                      data:
+                        KC_BOOTSTRAP_ADMIN_USERNAME: admin
+                        KEYCLOAK_CLIENT_ID: tenant-demo
+                        KEYCLOAK_HOME_URL: http://localhost:8000
+                        KEYCLOAK_REDIRECT_URI: http://localhost:8000/callback
+                  dataFrom:
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: keycloak-admin-password
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: KC_BOOTSTRAP_ADMIN_PASSWORD
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: keycloak-client-secret
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: KEYCLOAK_CLIENT_SECRET
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: grid-tenant-1-broker-client-secret
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: GRID_TENANT_1_BROKER_CLIENT_SECRET
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: grid-tenant-2-broker-client-secret
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: GRID_TENANT_2_BROKER_CLIENT_SECRET
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: grid-tenant-1-test-user-password
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: GRID_TENANT_1_TEST_USER_PASSWORD
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: grid-tenant-2-test-user-password
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: GRID_TENANT_2_TEST_USER_PASSWORD
+
+    # ── Signing key password (ESO) + cert-manager signing certificates ─
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-signing-keys
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: keycloak-signing-keystore-password
+                  namespace: maas-db
+                spec:
+                  length: 48
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: external-secrets.io/v1
+                kind: ExternalSecret
+                metadata:
+                  name: keycloak-signing-keystore-password
+                  namespace: maas-db
+                spec:
+                  refreshPolicy: CreatedOnce
+                  refreshInterval: 0s
+                  target:
+                    name: keycloak-signing-keystore-password
+                    creationPolicy: Owner
+                    deletionPolicy: Retain
+                    template:
+                      type: Opaque
+                      engineVersion: v2
+                      mergePolicy: Merge
+                  dataFrom:
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: keycloak-signing-keystore-password
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: password
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Issuer
+                metadata:
+                  name: keycloak-signing-selfsigned
+                  namespace: maas-db
+                spec:
+                  selfSigned: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: keycloak-saas-signing
+                  namespace: maas-db
+                spec:
+                  secretName: keycloak-saas-signing
+                  commonName: keycloak-saas-signing
+                  duration: 87600h
+                  renewBefore: 720h
+                  privateKey:
+                    algorithm: RSA
+                    size: 2048
+                    rotationPolicy: Never
+                  keystores:
+                    jks:
+                      create: true
+                      alias: saas-signing
+                      passwordSecretRef:
+                        name: keycloak-signing-keystore-password
+                        key: password
+                  issuerRef:
+                    name: keycloak-signing-selfsigned
+                    kind: Issuer
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: keycloak-grid-tenant-1-idp-signing
+                  namespace: maas-db
+                spec:
+                  secretName: keycloak-grid-tenant-1-idp-signing
+                  commonName: keycloak-grid-tenant-1-idp-signing
+                  duration: 87600h
+                  renewBefore: 720h
+                  privateKey:
+                    algorithm: RSA
+                    size: 2048
+                    rotationPolicy: Never
+                  keystores:
+                    jks:
+                      create: true
+                      alias: grid-tenant-1-idp-signing
+                      passwordSecretRef:
+                        name: keycloak-signing-keystore-password
+                        key: password
+                  issuerRef:
+                    name: keycloak-signing-selfsigned
+                    kind: Issuer
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: keycloak-grid-tenant-2-idp-signing
+                  namespace: maas-db
+                spec:
+                  secretName: keycloak-grid-tenant-2-idp-signing
+                  commonName: keycloak-grid-tenant-2-idp-signing
+                  duration: 87600h
+                  renewBefore: 720h
+                  privateKey:
+                    algorithm: RSA
+                    size: 2048
+                    rotationPolicy: Never
+                  keystores:
+                    jks:
+                      create: true
+                      alias: grid-tenant-2-idp-signing
+                      passwordSecretRef:
+                        name: keycloak-signing-keystore-password
+                        key: password
+                  issuerRef:
+                    name: keycloak-signing-selfsigned
+                    kind: Issuer
+
+    # ── Keycloak realm import ConfigMap ─────────────────────────────────
+    # The 3 realm JSON files are maintained separately in
+    # hub/platform/keycloak-realms/ and embedded here as ConfigMap data keys.
+    # The initContainer renders environment variable substitutions at startup.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-realm-import
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: keycloak-realm-import
+                  namespace: maas-db
+
+    # ── Keycloak Deployment + Service ──────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-deployment
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: keycloak
+                  namespace: maas-db
+                  labels:
+                    app.kubernetes.io/name: keycloak
+                spec:
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app.kubernetes.io/name: keycloak
+                  template:
+                    metadata:
+                      labels:
+                        app.kubernetes.io/name: keycloak
+                    spec:
+                      initContainers:
+                        - name: render-realm-import
+                          image: quay.io/keycloak/keycloak:26.8.0
+                          imagePullPolicy: IfNotPresent
+                          command:
+                            - /bin/bash
+                            - -c
+                          args:
+                            - |
+                              set -euo pipefail
+                              render_realm() {
+                                local line
+                                while IFS= read -r line || [[ -n "$line" ]]; do
+                                  line=${line//\$\{KEYCLOAK_CLIENT_ID\}/$KEYCLOAK_CLIENT_ID}
+                                  line=${line//\$\{KEYCLOAK_HOME_URL\}/$KEYCLOAK_HOME_URL}
+                                  line=${line//\$\{KEYCLOAK_PUBLIC_URL\}/$KEYCLOAK_PUBLIC_URL}
+                                  line=${line//\$\{KEYCLOAK_REDIRECT_URI\}/$KEYCLOAK_REDIRECT_URI}
+                                  line=${line//\$\{KEYCLOAK_CLIENT_SECRET\}/$KEYCLOAK_CLIENT_SECRET}
+                                  line=${line//\$\{GRID_TENANT_1_BROKER_CLIENT_SECRET\}/$GRID_TENANT_1_BROKER_CLIENT_SECRET}
+                                  line=${line//\$\{GRID_TENANT_2_BROKER_CLIENT_SECRET\}/$GRID_TENANT_2_BROKER_CLIENT_SECRET}
+                                  line=${line//\$\{GRID_TENANT_1_TEST_USER_PASSWORD\}/$GRID_TENANT_1_TEST_USER_PASSWORD}
+                                  line=${line//\$\{GRID_TENANT_2_TEST_USER_PASSWORD\}/$GRID_TENANT_2_TEST_USER_PASSWORD}
+                                  line=${line//\$\{KEYCLOAK_SIGNING_KEYSTORE_PASSWORD\}/$KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}
+                                  printf '%s\n' "$line"
+                                done
+                              }
+                              for source in /opt/keycloak/realm-import-source/*.json; do
+                                target="/opt/keycloak/data/import/$(basename "$source")"
+                                render_realm < "$source" > "$target"
+                              done
+                          envFrom:
+                            - secretRef:
+                                name: keycloak-secrets
+                            - configMapRef:
+                                name: keycloak-public-url
+                          env:
+                            - name: KEYCLOAK_SIGNING_KEYSTORE_PASSWORD
+                              valueFrom:
+                                secretKeyRef:
+                                  name: keycloak-signing-keystore-password
+                                  key: password
+                          volumeMounts:
+                            - name: realm-import-source
+                              mountPath: /opt/keycloak/realm-import-source
+                              readOnly: true
+                            - name: realm-import
+                              mountPath: /opt/keycloak/data/import
+                      containers:
+                        - name: keycloak
+                          image: quay.io/keycloak/keycloak:26.8.0
+                          imagePullPolicy: IfNotPresent
+                          command:
+                            - /bin/bash
+                            - -c
+                          args:
+                            - |
+                              /opt/keycloak/bin/kc.sh import --dir /opt/keycloak/data/import --override true
+                              exec /opt/keycloak/bin/kc.sh start
+                          ports:
+                            - name: http
+                              containerPort: 8080
+                              protocol: TCP
+                            - name: management
+                              containerPort: 9000
+                              protocol: TCP
+                          startupProbe:
+                            httpGet:
+                              path: /health/started
+                              port: management
+                            periodSeconds: 5
+                            timeoutSeconds: 5
+                            failureThreshold: 60
+                          envFrom:
+                            - secretRef:
+                                name: keycloak-secrets
+                            - configMapRef:
+                                name: keycloak-public-url
+                          env:
+                            - name: KC_DB
+                              value: postgres
+                            - name: KC_DB_URL_HOST
+                              value: maas-db-rw
+                            - name: KC_DB_URL_DATABASE
+                              value: keycloak
+                            - name: KC_DB_USERNAME
+                              valueFrom:
+                                secretKeyRef:
+                                  name: keycloak-db
+                                  key: username
+                            - name: KC_DB_PASSWORD
+                              valueFrom:
+                                secretKeyRef:
+                                  name: keycloak-db
+                                  key: password
+                            - name: KC_DB_TLS_MODE
+                              value: verify-server
+                            - name: KC_DB_TLS_TRUST_STORE_FILE
+                              value: /opt/keycloak/database-ca/ca.crt
+                            - name: KC_HOSTNAME
+                              valueFrom:
+                                configMapKeyRef:
+                                  name: keycloak-public-url
+                                  key: KEYCLOAK_PUBLIC_URL
+                            - name: KC_PROXY_HEADERS
+                              value: xforwarded
+                            - name: KC_HTTP_ENABLED
+                              value: "true"
+                            - name: KC_HEALTH_ENABLED
+                              value: "true"
+                          readinessProbe:
+                            httpGet:
+                              path: /health/ready
+                              port: management
+                            initialDelaySeconds: 30
+                            periodSeconds: 10
+                            timeoutSeconds: 5
+                          livenessProbe:
+                            httpGet:
+                              path: /health/live
+                              port: management
+                            initialDelaySeconds: 60
+                            periodSeconds: 15
+                            timeoutSeconds: 5
+                          volumeMounts:
+                            - name: database-ca
+                              mountPath: /opt/keycloak/database-ca
+                              readOnly: true
+                            - name: saas-signing-key
+                              mountPath: /opt/keycloak/data/saas
+                              readOnly: true
+                            - name: grid-tenant-1-idp-signing-key
+                              mountPath: /opt/keycloak/data/grid-tenant-1-idp
+                              readOnly: true
+                            - name: grid-tenant-2-idp-signing-key
+                              mountPath: /opt/keycloak/data/grid-tenant-2-idp
+                              readOnly: true
+                            - name: realm-import
+                              mountPath: /opt/keycloak/data/import
+                              readOnly: true
+                      volumes:
+                        - name: database-ca
+                          secret:
+                            secretName: maas-db-ca
+                        - name: saas-signing-key
+                          secret:
+                            secretName: keycloak-saas-signing
+                            items:
+                              - key: keystore.jks
+                                path: keystore.jks
+                        - name: grid-tenant-1-idp-signing-key
+                          secret:
+                            secretName: keycloak-grid-tenant-1-idp-signing
+                            items:
+                              - key: keystore.jks
+                                path: keystore.jks
+                        - name: grid-tenant-2-idp-signing-key
+                          secret:
+                            secretName: keycloak-grid-tenant-2-idp-signing
+                            items:
+                              - key: keystore.jks
+                                path: keystore.jks
+                        - name: realm-import-source
+                          configMap:
+                            name: keycloak-realm-import
+                        - name: realm-import
+                          emptyDir: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: keycloak
+                  namespace: maas-db
+                  labels:
+                    app.kubernetes.io/name: keycloak
+                spec:
+                  selector:
+                    app.kubernetes.io/name: keycloak
+                  ports:
+                    - name: http
+                      port: 8080
+                      targetPort: http
+                      protocol: TCP
+
+    # ── Keycloak Route ─────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-route
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: keycloak
+                  namespace: maas-db
+                spec:
+                  to:
+                    kind: Service
+                    name: keycloak
+                    weight: 100
+                  port:
+                    targetPort: http
+                  tls:
+                    termination: edge
+                    insecureEdgeTerminationPolicy: Redirect
+                  wildcardPolicy: None
+
+    # ── Keycloak public URL distribution (all sites) ───────────────────
+    # Reads the Route host on the hub and distributes it as a ConfigMap
+    # to every managed cluster so the Keycloak container can set KC_HOSTNAME.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-keycloak-public-url
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: keycloak-public-url
+                  namespace: maas-db
+                data:
+                  KEYCLOAK_PUBLIC_URL: '{{hub printf "https://%s" (index (lookup "route.openshift.io/v1" "Route" "maas-db" "keycloak").status.ingress 0).host hub}}'
