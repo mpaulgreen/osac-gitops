@@ -183,7 +183,8 @@ done
 printf 'MultiClusterHub CRD ready.\n'
 
 printf '\n=== Step 7: Create MultiClusterHub ===\n'
-oc apply -f - <<'YAML'
+printf 'Waiting for ACM operator webhook to become available...\n'
+until oc apply -f - <<'YAML' 2>/dev/null
 apiVersion: operator.open-cluster-management.io/v1
 kind: MultiClusterHub
 metadata:
@@ -191,6 +192,10 @@ metadata:
   namespace: open-cluster-management
 spec: {}
 YAML
+do
+  sleep 15
+done
+printf 'MultiClusterHub created.\n'
 
 printf 'Waiting for ACM CRDs (ManagedClusterSet, Placement, GitOpsCluster)...\n'
 until oc get crd managedclustersetbindings.cluster.open-cluster-management.io >/dev/null 2>&1 && \
