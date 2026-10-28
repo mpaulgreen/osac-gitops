@@ -1,0 +1,240 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-grid-gateway
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Deploys the praxis consumer and provider gateways on each site.
+      The consumer gateway routes MaaS requests to grid backends; the
+      provider gateway serves local models to remote peers via mutual TLS.
+      Both use per-site identity from grid-site-identity / grid-ca.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Consumer Gateway ───────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-consumer-gateway
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: grid-gateway
+                  namespace: redhat-ai-grid
+                  labels:
+                    app: grid-gateway
+                spec:
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app: grid-gateway
+                  template:
+                    metadata:
+                      labels:
+                        app: grid-gateway
+                    spec:
+                      serviceAccountName: grid-model-client
+                      containers:
+                        - name: gateway
+                          image: registry.redhat.io/rhoai/odh-praxis-ai-grid-gateway-rhel9@sha256:991f24ee2ce66b36bdc68f34f226d7fd81c6826a1221f1a3e0fde59fad78e1ea
+                          ports:
+                            - name: https
+                              containerPort: 8443
+                            - name: metrics
+                              containerPort: 9443
+                          env:
+                            - name: PRAXIS_CONFIG_SOURCE
+                              value: render
+                            - name: PRAXIS_ROLE
+                              value: consumer
+                            - name: PRAXIS_AUTH_MODE
+                              value: none
+                            - name: PRAXIS_GRID_NETWORK_NAME
+                              value: grid
+                            - name: PRAXIS_GRID_GATEWAY_NAME
+                              value: grid-gateway
+                          volumeMounts:
+                            - name: tls-identity
+                              mountPath: /etc/praxis/tls
+                              readOnly: true
+                            - name: listener-tls
+                              mountPath: /etc/praxis/listener-tls
+                              readOnly: true
+                      volumes:
+                        - name: tls-identity
+                          projected:
+                            sources:
+                              - secret:
+                                  name: grid-site-identity
+                              - secret:
+                                  name: grid-ca
+                        - name: listener-tls
+                          secret:
+                            secretName: grid-gateway-listener-tls
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-gateway
+                  namespace: redhat-ai-grid
+                  annotations:
+                    service.beta.openshift.io/serving-cert-secret-name: grid-gateway-listener-tls
+                spec:
+                  selector:
+                    app: grid-gateway
+                  ports:
+                    - name: https
+                      port: 443
+                      targetPort: https
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-gateway-metrics
+                  namespace: redhat-ai-grid
+                  annotations:
+                    service.beta.openshift.io/serving-cert-secret-name: grid-gateway-metrics-tls
+                spec:
+                  selector:
+                    app: grid-gateway
+                  ports:
+                    - name: metrics
+                      port: 9443
+                      targetPort: metrics
+
+    # ── Provider Gateway ───────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-provider-gateway
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: grid-provider-gateway
+                  namespace: redhat-ai-grid
+                  labels:
+                    app: grid-provider-gateway
+                spec:
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app: grid-provider-gateway
+                  template:
+                    metadata:
+                      labels:
+                        app: grid-provider-gateway
+                    spec:
+                      containers:
+                        - name: gateway
+                          image: registry.redhat.io/rhoai/odh-praxis-ai-grid-gateway-rhel9@sha256:991f24ee2ce66b36bdc68f34f226d7fd81c6826a1221f1a3e0fde59fad78e1ea
+                          ports:
+                            - name: https
+                              containerPort: 8443
+                          env:
+                            - name: PRAXIS_CONFIG_SOURCE
+                              value: render
+                            - name: PRAXIS_ROLE
+                              value: provider
+                            - name: PRAXIS_PEER_TRUST_MODE
+                              value: spiffe
+                            - name: PRAXIS_PEER_SPIFFE_IDS
+                              value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-spiffe-ids" .ManagedClusterName) hub}}'
+                            - name: PRAXIS_TRUST_PRIVATE
+                              value: "true"
+                          volumeMounts:
+                            - name: tls-identity
+                              mountPath: /etc/praxis/tls
+                              readOnly: true
+                      volumes:
+                        - name: tls-identity
+                          projected:
+                            sources:
+                              - secret:
+                                  name: grid-site-identity
+                              - secret:
+                                  name: grid-ca
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-provider-gateway
+                  namespace: redhat-ai-grid
+                spec:
+                  selector:
+                    app: grid-provider-gateway
+                  ports:
+                    - name: https
+                      port: 443
+                      targetPort: https
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: grid-provider-gateway
+                  namespace: redhat-ai-grid
+                  annotations:
+                    haproxy.router.openshift.io/timeout: 300s
+                spec:
+                  host: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-route-host" .ManagedClusterName) hub}}'
+                  to:
+                    kind: Service
+                    name: grid-provider-gateway
+                  port:
+                    targetPort: https
+                  tls:
+                    termination: passthrough
+
+    # ── Provider gateway NetworkPolicy ─────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-gateway-network-policy
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: grid-provider-gateway
+                  namespace: redhat-ai-grid
+                spec:
+                  podSelector:
+                    matchLabels:
+                      app: grid-provider-gateway
+                  ingress:
+                    - from:
+                        - podSelector:
+                            matchLabels:
+                              grid.opendatahub.io/gateway-client: "true"
+                        - namespaceSelector:
+                            matchLabels:
+                              network.openshift.io/policy-group: ingress
+                      ports:
+                        - port: 8443

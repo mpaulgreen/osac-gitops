@@ -63,7 +63,7 @@ spec:
                   source: redhat-operators
                   sourceNamespace: openshift-marketplace
                   name: odf-operator
-                  channel: stable-4.21
+                  channel: stable-4.22
                   installPlanApproval: Automatic
 
     # ── StorageCluster ────────────────────────────────────────────────

@@ -9,6 +9,8 @@ metadata:
   annotations:
     policy.open-cluster-management.io/description: >-
       Provisions the CloudNativePG database cluster for the MaaS gateway.
+      Hub runs the primary (3 instances); spokes run a single read replica
+      streaming from the hub via Submariner cross-cluster DNS.
       CNPG auto-generates credentials in maas-db-app; a managed-side template
       derives the connection URL for redhat-ai-gateway-infra. No secret value
       is in Git or in the hub Policy.
@@ -16,7 +18,7 @@ spec:
   remediationAction: enforce
   disabled: false
   policy-templates:
-    # ── Namespaces ──────────────────────────────────────────────────────
+    # ── Namespaces (all sites) ──────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -45,7 +47,7 @@ spec:
                 metadata:
                   name: redhat-ods-applications
 
-    # ── CloudNativePG Cluster ───────────────────────────────────────────
+    # ── CloudNativePG Primary Cluster (hub only) ────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -85,7 +87,25 @@ spec:
                     topologyKey: kubernetes.io/hostname
                     podAntiAffinityType: preferred
 
-    # ── Database connection URL (managed-side template) ─────────────────
+    # ── ServiceExport for cross-cluster DNS (hub only) ──────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-database-service-export
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: multicluster.x-k8s.io/v1alpha1
+                kind: ServiceExport
+                metadata:
+                  name: maas-db-rw
+                  namespace: maas-db
+
+    # ── Database connection URL (managed-side template, all sites) ──────
     # Reads CNPG-generated credentials from maas-db-app and creates the
     # connection URL secret that the MaaS gateway expects.
     - objectDefinition:

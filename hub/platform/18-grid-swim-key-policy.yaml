@@ -1,0 +1,39 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-grid-swim-key
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Distributes the hub's grid-swim-key Secret to all managed clusters.
+      SWIM carries membership gossip, and its packets are keyed by one
+      grid-wide secret, so every gossiping site needs the hub's bytes.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-swim-key
+        spec:
+          remediationAction: enforce
+          severity: high
+          namespaceSelector:
+            include:
+              - redhat-ai-grid
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-swim-key
+                  namespace: redhat-ai-grid
+                type: Opaque
+                data:
+                  key: '{{hub fromSecret "redhat-ai-grid" "grid-swim-key" "key" hub}}'

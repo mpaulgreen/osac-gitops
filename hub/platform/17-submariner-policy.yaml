@@ -114,3 +114,28 @@ spec:
                   loadBalancerEnable: true
                   gatewayConfig:
                     gateways: 2
+
+    # ── Gateway node labels ────────────────────────────────────────────
+    # Label worker nodes as Submariner gateways so the operator knows
+    # which nodes to use for cross-cluster tunnels.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-gateway-labels
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- range (lookup "v1" "Node" "" "").items }}
+            {{- if (hasKey .metadata.labels "node-role.kubernetes.io/worker") }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Node
+                metadata:
+                  name: {{ .metadata.name }}
+                  labels:
+                    submariner.io/gateway: "true"
+            {{- end }}
+            {{- end }}

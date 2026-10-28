@@ -56,6 +56,16 @@ spec:
                   monitoring:
                     managementState: Managed
                     namespace: redhat-ods-monitoring
+                    metrics:
+                      storage:
+                        size: 20Gi
+                      exporters:
+                        prometheus/rhacm:
+                          endpoint: 0.0.0.0:8890
+                    traces:
+                      storage:
+                        backend: pv
+                        size: 10Gi
                   trustedCABundle:
                     customCABundle: ""
                     managementState: Managed
@@ -77,6 +87,7 @@ spec:
                 metadata:
                   name: default-dsc
                 spec:
+                  skipCrdCheck: true
                   components:
                     dashboard:
                       managementState: Managed
@@ -84,6 +95,19 @@ spec:
                       managementState: Managed
                       modelsAsService:
                         managementState: Managed
+                      gateway:
+                        annotations:
+                          grid.opendatahub.io/serving: >-
+                            {"networkName":"grid","namespace":"redhat-ai-grid",
+                             "serviceAccount":"grid-model-client","tokenSecret":"grid-model-client-token"}
+                        spec:
+                          listeners:
+                            - name: http
+                              port: 80
+                              protocol: HTTP
+                            - name: https
+                              port: 443
+                              protocol: HTTPS
                     ray:
                       managementState: Managed
                     trainingoperator:

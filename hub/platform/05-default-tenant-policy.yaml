@@ -56,6 +56,24 @@ spec:
                 kind: Namespace
                 metadata:
                   name: redhat-ai-grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: grid-model-client
+                  namespace: redhat-ai-grid
+                automountServiceAccountToken: false
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-model-client-token
+                  namespace: redhat-ai-grid
+                  annotations:
+                    kubernetes.io/service-account.name: grid-model-client
+                type: kubernetes.io/service-account-token
 
     # ── AITenant (replaces Tenant from 3.5.1) ───────────────────────────
     - objectDefinition:

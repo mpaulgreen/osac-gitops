@@ -32,6 +32,114 @@ spec:
                 metadata:
                   name: grid-enrollment-invites
 
+    # ── Grid Enrollment Service ───────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-service
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: PersistentVolumeClaim
+                metadata:
+                  name: grid-enrollment-db
+                  namespace: redhat-ai-grid
+                  annotations:
+                    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+                spec:
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 1Gi
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: grid-enrollment
+                  namespace: redhat-ai-grid
+                spec:
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app: grid-enrollment
+                  template:
+                    metadata:
+                      labels:
+                        app: grid-enrollment
+                    spec:
+                      containers:
+                        - name: enrollment
+                          image: registry.redhat.io/rhoai/odh-praxis-ai-grid-enrollment-rhel9@sha256:dc18cc2d5ae92c4f7e67a25e5a2b18e9a72a3e4b5e6c7d8f9a0b1c2d3e4f5a6b
+                          ports:
+                            - name: http
+                              containerPort: 8080
+                          env:
+                            - name: ENROLLMENT_DB_TYPE
+                              value: builtin
+                            - name: ENROLLMENT_DB_PATH
+                              value: /var/lib/enrollment/db
+                            - name: ENROLLMENT_AUTHZ
+                              value: kube
+                            - name: ENROLLMENT_HUB_SITE_NAME
+                              value: local-cluster
+                            - name: ENROLLMENT_HUB_NAMESPACE
+                              value: redhat-ai-grid
+                            - name: ENROLLMENT_HUB_IDENTITY_SECRET
+                              value: grid-site-identity
+                            - name: ENROLLMENT_HUB_CA_SECRET
+                              value: grid-ca
+                            - name: ENROLLMENT_HUB_SWIM_KEY_SECRET
+                              value: grid-swim-key
+                            - name: ENROLLMENT_HUB_SEED_SECRET
+                              value: grid-reserved-seeds
+                            - name: ENROLLMENT_INVITE_NAMESPACE
+                              value: grid-enrollment-invites
+                          volumeMounts:
+                            - name: db
+                              mountPath: /var/lib/enrollment/db
+                      volumes:
+                        - name: db
+                          persistentVolumeClaim:
+                            claimName: grid-enrollment-db
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-enrollment
+                  namespace: redhat-ai-grid
+                spec:
+                  selector:
+                    app: grid-enrollment
+                  ports:
+                    - name: http
+                      port: 8080
+                      targetPort: http
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: grid-enrollment
+                  namespace: redhat-ai-grid
+                spec:
+                  host: '{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
+                  to:
+                    kind: Service
+                    name: grid-enrollment
+                  port:
+                    targetPort: http
+                  tls:
+                    termination: edge
+                    insecureEdgeTerminationPolicy: Redirect
+
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1

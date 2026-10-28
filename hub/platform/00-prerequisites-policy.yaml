@@ -60,7 +60,7 @@ spec:
         metadata:
           name: osac-fbc-catalog
         spec:
-          remediationAction: inform
+          remediationAction: enforce
           severity: low
           object-templates:
             - complianceType: musthave
