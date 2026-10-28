@@ -29,7 +29,6 @@ metadata:
       Spoke read-replica: a single-instance CNPG Cluster streaming from the
       hub primary via Submariner cross-cluster DNS. Replication TLS certs are
       distributed from the hub.
-    policy.open-cluster-management.io/hub-templates-options: '{"namespaceSelector":{"include":["maas-db"]},"serviceAccountName":"osac-hub-templating"}'
 spec:
   remediationAction: enforce
   disabled: false
@@ -43,7 +42,10 @@ spec:
         spec:
           remediationAction: enforce
           severity: high
-          object-templates:
+          object-templates-raw: |
+            {{hub- $repl := (lookup "v1" "Secret" "osac-platform" "maas-db-replication-mirror") hub}}
+            {{hub- $ca   := (lookup "v1" "Secret" "osac-platform" "maas-db-ca-mirror") hub}}
+            {{hub- if and $repl $ca hub}}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -53,8 +55,8 @@ spec:
                   namespace: maas-db
                 type: kubernetes.io/tls
                 data:
-                  tls.key: '{{hub fromSecret "maas-db" "maas-db-replication" "tls.key" hub}}'
-                  tls.crt: '{{hub fromSecret "maas-db" "maas-db-replication" "tls.crt" hub}}'
+                  tls.key: '{{hub fromSecret "osac-platform" "maas-db-replication-mirror" "tls.key" hub}}'
+                  tls.crt: '{{hub fromSecret "osac-platform" "maas-db-replication-mirror" "tls.crt" hub}}'
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -64,7 +66,8 @@ spec:
                   namespace: maas-db
                 type: Opaque
                 data:
-                  ca.crt: '{{hub fromSecret "maas-db" "maas-db-ca" "ca.crt" hub}}'
+                  ca.crt: '{{hub fromSecret "osac-platform" "maas-db-ca-mirror" "ca.crt" hub}}'
+            {{hub- end hub}}
 
     # ── Read-replica CNPG Cluster ──────────────────────────────────────
     - objectDefinition:
