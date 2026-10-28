@@ -65,7 +65,7 @@ spec:
                         service.beta.openshift.io/serving-cert-secret-name: "maas-gw-service-tls"
                     spec:
                       type: ClusterIP
-            - complianceType: musthave
+            - complianceType: mustonlyhave
               recreateOption: IfRequired
               objectDefinition:
                 apiVersion: gateway.networking.k8s.io/v1
