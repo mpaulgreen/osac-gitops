@@ -24,8 +24,7 @@ spec:
         spec:
           remediationAction: enforce
           severity: high
-          object-templates-raw: |
-            {{hub- if (lookup "v1" "Secret" "redhat-ai-grid" "grid-swim-key") hub}}
+          object-templates:
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -36,4 +35,3 @@ spec:
                 type: Opaque
                 data:
                   key: '{{hub fromSecret "redhat-ai-grid" "grid-swim-key" "key" hub}}'
-            {{hub- end hub}}

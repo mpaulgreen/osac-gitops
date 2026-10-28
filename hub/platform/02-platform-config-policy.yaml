@@ -94,8 +94,10 @@ spec:
                       managementState: Managed
                     ray:
                       managementState: Managed
-                    trainingoperator:
+                    trainer:
                       managementState: Managed
+                    trainingoperator:
+                      managementState: Removed
                     trustyai:
                       managementState: Managed
                     workbenches:

@@ -43,10 +43,7 @@ spec:
         spec:
           remediationAction: enforce
           severity: high
-          object-templates-raw: |
-            {{hub- $repl := (lookup "v1" "Secret" "maas-db" "maas-db-replication") hub}}
-            {{hub- $ca := (lookup "v1" "Secret" "maas-db" "maas-db-ca") hub}}
-            {{hub- if (and $repl $ca) hub}}
+          object-templates:
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -56,8 +53,8 @@ spec:
                   namespace: maas-db
                 type: kubernetes.io/tls
                 data:
-                  tls.key: '{{hub index $repl.data "tls.key" hub}}'
-                  tls.crt: '{{hub index $repl.data "tls.crt" hub}}'
+                  tls.key: '{{hub fromSecret "maas-db" "maas-db-replication" "tls.key" hub}}'
+                  tls.crt: '{{hub fromSecret "maas-db" "maas-db-replication" "tls.crt" hub}}'
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -67,8 +64,7 @@ spec:
                   namespace: maas-db
                 type: Opaque
                 data:
-                  ca.crt: '{{hub index $ca.data "ca.crt" hub}}'
-            {{hub- end hub}}
+                  ca.crt: '{{hub fromSecret "maas-db" "maas-db-ca" "ca.crt" hub}}'
 
     # ── Read-replica CNPG Cluster ──────────────────────────────────────
     - objectDefinition:
