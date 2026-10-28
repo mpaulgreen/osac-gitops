@@ -134,8 +134,8 @@ spec:
             {{- if not $sourceAuth -}}
             {{- $sourceAuth = index $sourceAuths "quay.io" -}}
             {{- end -}}
-            {{- $mergedAuths := mustMerge (index $globalConfig "auths") (dict "quay.io/rhoai" $sourceAuth) -}}
-            {{- $mergedConfig := mustMerge $globalConfig (dict "auths" $mergedAuths) -}}
+            {{- $globalAuths := index $globalConfig "auths" -}}
+            {{- $_ := set $globalAuths "quay.io/rhoai" $sourceAuth -}}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -145,5 +145,27 @@ spec:
                   namespace: openshift-config
                 type: kubernetes.io/dockerconfigjson
                 data:
-                  .dockerconfigjson: '{{ $mergedConfig | toJson | base64enc }}'
+                  .dockerconfigjson: '{{ $globalConfig | toJson | base64enc }}'
             {{- end -}}
+
+    # ── Link pull-secret to default SA for OLM bundle unpack pods ──────
+    # OLM unpack jobs use the default SA in openshift-marketplace. The
+    # CatalogSource spec.secrets only covers the catalog (gRPC) pod.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-marketplace-sa-pull-secret
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: default
+                  namespace: openshift-marketplace
+                imagePullSecrets:
+                  - name: rhoai-catalog-pull-secret
