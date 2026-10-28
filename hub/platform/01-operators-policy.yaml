@@ -364,10 +364,10 @@ spec:
           remediationAction: enforce
           severity: low
           object-templates-raw: |
-            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "externalsecretconfigs.externalsecrets.operator.openshift.io") }}
+            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "externalsecretsconfigs.operator.openshift.io") }}
             - complianceType: musthave
               objectDefinition:
-                apiVersion: externalsecrets.operator.openshift.io/v1
+                apiVersion: operator.openshift.io/v1alpha1
                 kind: ExternalSecretsConfig
                 metadata:
                   name: cluster
