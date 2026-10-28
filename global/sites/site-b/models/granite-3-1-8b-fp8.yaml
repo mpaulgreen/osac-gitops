@@ -6,7 +6,7 @@ metadata:
   namespace: ai-grid-internal-models
 spec:
   baseRefs:
-    - name: v3-6-0-kserve-config-llm-template-cpu
+    - name: v3-6-0-kserve-config-llm-template
   model:
     name: granite-3.1-8b-instruct-fp8
     uri: oci://quay.io/mpaulgreen/granite-3.1-8b-instruct-fp8:gori-1.0
