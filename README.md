@@ -1,5 +1,7 @@
 # MaaS Platform Provisioning using Gitops and ACM automation
 
+> **Work in progress.**
+
 ## Design
 
 [osac-gitops-acm-design.md](osac-gitops-acm-design.md)
