@@ -16,7 +16,7 @@ spec:
     route: {}
     gateway:
       refs:
-        - name: openshift-ai-inference
+        - name: maas-default-gateway
           namespace: openshift-ingress
   template:
     containers:
