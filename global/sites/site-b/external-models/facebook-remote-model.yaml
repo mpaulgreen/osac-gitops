@@ -13,5 +13,5 @@ spec:
         name: facebook-remote-provider
       apiFormat: openai-chat
       targetModel: facebook/opt-125m
-      path: /maas-models/facebook-opt-125m-simulated/v1/chat/completions
+      path: /ai-grid-internal-models/facebook-opt-125m/v1/chat/completions
       weight: 1
