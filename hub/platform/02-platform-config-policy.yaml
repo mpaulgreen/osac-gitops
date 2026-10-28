@@ -95,7 +95,7 @@ spec:
                     ray:
                       managementState: Managed
                     trainer:
-                      managementState: Managed
+                      managementState: Removed
                     trainingoperator:
                       managementState: Removed
                     trustyai:
