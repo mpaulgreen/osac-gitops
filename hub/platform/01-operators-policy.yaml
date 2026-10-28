@@ -168,6 +168,7 @@ spec:
                   source: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.rhoai-source" .ManagedClusterName) hub}}'
                   sourceNamespace: openshift-marketplace
                   installPlanApproval: Automatic
+                  startingCSV: rhods-operator.3.6.0
 
     # ── Group D: observability (OTel + COO) ────────────────────────────
     - objectDefinition:
