@@ -93,21 +93,19 @@ spec:
                     kserve:
                       managementState: Managed
                     ray:
-                      managementState: Managed
+                      managementState: Removed
                     trainer:
                       managementState: Removed
                     trainingoperator:
                       managementState: Removed
                     trustyai:
-                      managementState: Managed
+                      managementState: Removed
                     workbenches:
-                      managementState: Managed
-                      workbenchNamespace: rhods-notebooks
+                      managementState: Removed
                     modelregistry:
-                      managementState: Managed
-                      registriesNamespace: rhoai-model-registries
+                      managementState: Removed
                     ogx:
-                      managementState: Managed
+                      managementState: Removed
                     aigateway:
                       managementState: Managed
                       aiGrid:
