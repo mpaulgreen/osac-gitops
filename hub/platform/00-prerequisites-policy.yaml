@@ -86,6 +86,8 @@ spec:
                   image: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.rhoai-fbc-image" .ManagedClusterName) hub}}'
                   secrets:
                     - rhoai-catalog-pull-secret
+                  grpcPodConfig:
+                    securityContextConfig: restricted
                   updateStrategy:
                     registryPoll:
                       interval: 15m
