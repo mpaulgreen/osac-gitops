@@ -62,10 +62,6 @@ spec:
                       exporters:
                         prometheus/rhacm:
                           endpoint: 0.0.0.0:8890
-                    traces:
-                      storage:
-                        backend: pv
-                        size: 10Gi
                   trustedCABundle:
                     customCABundle: ""
                     managementState: Managed
