@@ -103,6 +103,7 @@ spec:
                                   - models-as-a-service
                                   - ai-grid-internal-models
                                   - redhat-ai-gateway-infra
+                                  - external-models
                       tls:
                         certificateRefs:
                           - group: ""
@@ -124,6 +125,7 @@ spec:
                                   - models-as-a-service
                                   - ai-grid-internal-models
                                   - redhat-ai-gateway-infra
+                                  - external-models
                       tls:
                         certificateRefs:
                           - group: ""
