@@ -242,6 +242,24 @@ spec:
                     tls:
                       enabled: false
 
+    # ── Cleanup: stale auto-generated passthrough route (blocks the reencrypt one) ──
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-maas-route-cleanup
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: mustnothave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: maas-default-gateway
+                  namespace: openshift-ingress
+
     # ── MaaS Route (reencrypt) ──────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
