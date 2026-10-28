@@ -1,0 +1,53 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-cnpg-operator
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Hub-only: installs the CloudNativePG operator. The CNPG primary runs
+      only on the hub; spokes do not need the operator or any CNPG resources.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-cnpg-operator
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: cnpg-system
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1
+                kind: OperatorGroup
+                metadata:
+                  name: cnpg-system
+                  namespace: cnpg-system
+                spec:
+                  targetNamespaces: []
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: cloudnative-pg
+                  namespace: cnpg-system
+                spec:
+                  channel: stable-v1
+                  name: cloudnative-pg
+                  source: certified-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic

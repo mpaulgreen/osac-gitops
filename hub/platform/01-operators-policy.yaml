@@ -276,44 +276,7 @@ spec:
                   name: dns-operator-stable-redhat-operators-openshift-marketplace
                   namespace: openshift-operators
 
-    # ── Group E: CloudNativePG ─────────────────────────────────────────
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-operators-group-e
-        spec:
-          remediationAction: enforce
-          severity: low
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: v1
-                kind: Namespace
-                metadata:
-                  name: cnpg-system
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: operators.coreos.com/v1
-                kind: OperatorGroup
-                metadata:
-                  name: cnpg-system
-                  namespace: cnpg-system
-                spec:
-                  targetNamespaces: []
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: operators.coreos.com/v1alpha1
-                kind: Subscription
-                metadata:
-                  name: cloudnative-pg
-                  namespace: cnpg-system
-                spec:
-                  channel: stable-v1
-                  name: cloudnative-pg
-                  source: certified-operators
-                  sourceNamespace: openshift-marketplace
-                  installPlanApproval: Automatic
+    # ── Group E: CloudNativePG — moved to 01-cnpg-operator-policy.yaml (hub-only) ──
 
     # ── Group F: External Secrets Operator ─────────────────────────────
     - objectDefinition:

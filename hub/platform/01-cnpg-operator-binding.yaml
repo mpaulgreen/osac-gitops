@@ -1,0 +1,16 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: osac-cnpg-operator-binding
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+placementRef:
+  name: osac-hub-only
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+subjects:
+  - name: osac-cnpg-operator
+    apiGroup: policy.open-cluster-management.io
+    kind: Policy

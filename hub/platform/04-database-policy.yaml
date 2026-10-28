@@ -8,12 +8,9 @@ metadata:
     osac.io/platform: "true"
   annotations:
     policy.open-cluster-management.io/description: >-
-      Provisions the CloudNativePG database cluster for the MaaS gateway.
-      Hub runs the primary (3 instances); spokes run a single read replica
-      streaming from the hub via Submariner cross-cluster DNS.
-      CNPG auto-generates credentials in maas-db-app; a managed-side template
-      derives the connection URL for redhat-ai-gateway-infra. No secret value
-      is in Git or in the hub Policy.
+      Creates the namespaces used by the MaaS database and gateway infrastructure
+      on every managed cluster. The CNPG primary and Keycloak run hub-only
+      (see osac-database-hub policy).
 spec:
   remediationAction: enforce
   disabled: false
@@ -47,91 +44,3 @@ spec:
                 metadata:
                   name: redhat-ods-applications
 
-    # ── CloudNativePG Primary Cluster (hub only) ────────────────────────
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-cnpg-cluster
-        spec:
-          remediationAction: enforce
-          severity: low
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: postgresql.cnpg.io/v1
-                kind: Cluster
-                metadata:
-                  name: maas-db
-                  namespace: maas-db
-                spec:
-                  instances: 3
-                  certificates:
-                    serverAltDNSNames:
-                      - maas-db-rw.maas-db.svc.clusterset.local
-                  bootstrap:
-                    initdb:
-                      database: maas
-                      owner: maas_api
-                  storage:
-                    size: 20Gi
-                  resources:
-                    requests:
-                      cpu: 250m
-                      memory: 1Gi
-                    limits:
-                      cpu: "2"
-                      memory: 4Gi
-                  affinity:
-                    enablePodAntiAffinity: true
-                    topologyKey: kubernetes.io/hostname
-                    podAntiAffinityType: preferred
-
-    # ── ServiceExport for cross-cluster DNS (hub only) ──────────────────
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-database-service-export
-        spec:
-          remediationAction: enforce
-          severity: low
-          object-templates-raw: |
-            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "serviceexports.multicluster.x-k8s.io") }}
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: multicluster.x-k8s.io/v1alpha1
-                kind: ServiceExport
-                metadata:
-                  name: maas-db-rw
-                  namespace: maas-db
-            {{- end }}
-
-    # ── Database connection URL (managed-side template, all sites) ──────
-    # Reads CNPG-generated credentials from maas-db-app and creates the
-    # connection URL secret that the MaaS gateway expects.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-database-connection
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates-raw: |
-            {{- $creds := lookup "v1" "Secret" "maas-db" "maas-db-app" -}}
-            {{- if $creds -}}
-            {{- $user := base64dec $creds.data.username -}}
-            {{- $pw := base64dec $creds.data.password -}}
-            {{- $db := "maas" -}}
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: v1
-                kind: Secret
-                metadata:
-                  name: maas-db-config
-                  namespace: redhat-ai-gateway-infra
-                type: Opaque
-                data:
-                  DB_CONNECTION_URL: {{ printf "postgresql://%s:%s@maas-db-rw.maas-db.svc:5432/%s?sslmode=require" $user $pw $db | base64enc }}
-            {{- end -}}
