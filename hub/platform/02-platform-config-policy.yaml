@@ -87,27 +87,11 @@ spec:
                 metadata:
                   name: default-dsc
                 spec:
-                  skipCrdCheck: true
                   components:
                     dashboard:
                       managementState: Managed
                     kserve:
                       managementState: Managed
-                      modelsAsService:
-                        managementState: Managed
-                      gateway:
-                        annotations:
-                          grid.opendatahub.io/serving: >-
-                            {"networkName":"grid","namespace":"redhat-ai-grid",
-                             "serviceAccount":"grid-model-client","tokenSecret":"grid-model-client-token"}
-                        spec:
-                          listeners:
-                            - name: http
-                              port: 80
-                              protocol: HTTP
-                            - name: https
-                              port: 443
-                              protocol: HTTPS
                     ray:
                       managementState: Managed
                     trainingoperator:
@@ -122,8 +106,12 @@ spec:
                       registriesNamespace: rhoai-model-registries
                     ogx:
                       managementState: Managed
-                    aiGrid:
+                    aigateway:
                       managementState: Managed
+                      aiGrid:
+                        managementState: Managed
+                      modelsAsAService:
+                        managementState: Managed
                     aipipelines:
                       managementState: Removed
                     feastoperator:

@@ -96,7 +96,8 @@ spec:
         spec:
           remediationAction: enforce
           severity: low
-          object-templates:
+          object-templates-raw: |
+            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "serviceexports.multicluster.x-k8s.io") }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: multicluster.x-k8s.io/v1alpha1
@@ -104,6 +105,7 @@ spec:
                 metadata:
                   name: maas-db-rw
                   namespace: maas-db
+            {{- end }}
 
     # ── Database connection URL (managed-side template, all sites) ──────
     # Reads CNPG-generated credentials from maas-db-app and creates the

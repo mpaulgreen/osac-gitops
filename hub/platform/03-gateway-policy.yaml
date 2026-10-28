@@ -66,6 +66,7 @@ spec:
                     spec:
                       type: ClusterIP
             - complianceType: musthave
+              recreateOption: IfRequired
               objectDefinition:
                 apiVersion: gateway.networking.k8s.io/v1
                 kind: Gateway
@@ -139,6 +140,7 @@ spec:
           severity: low
           object-templates:
             - complianceType: musthave
+              recreateOption: IfRequired
               objectDefinition:
                 apiVersion: gateway.networking.k8s.io/v1
                 kind: Gateway

@@ -9,6 +9,8 @@ metadata:
   name: osac-site-params
   namespace: osac-platform
 data:
+  # Submariner: clusters to receive the addon
+  submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---
   local-cluster.rhoai-channel: "stable-3.6"
   local-cluster.rhoai-source: "rhoai-catalog-dev"

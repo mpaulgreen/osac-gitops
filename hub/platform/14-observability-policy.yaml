@@ -58,7 +58,18 @@ spec:
                   - kind: ServiceAccount
                     name: grid-epp-metrics-reader
                     namespace: redhat-ai-grid
-            # UWM federate reader
+
+    # ── UWM federate reader RBAC (ACM observability namespace) ─────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-observability-rbac-acm
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- if (lookup "v1" "Namespace" "" "open-cluster-management-observability") }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
@@ -90,6 +101,7 @@ spec:
                   - kind: ServiceAccount
                     name: grid-uwm-federate-reader
                     namespace: open-cluster-management-observability
+            {{- end }}
 
     # ── ScrapeConfigs ──────────────────────────────────────────────────
     - objectDefinition:
@@ -176,7 +188,18 @@ spec:
                   staticConfigs:
                     - targets:
                         - facebook-opt-125m-epp-service.ai-grid-internal-models.svc:9090
-            # RHAI metrics (OTel collector)
+
+    # ── ScrapeConfigs for ACM observability namespace ──────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-observability-scrapeconfigs-acm
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- if (lookup "v1" "Namespace" "" "open-cluster-management-observability") }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: monitoring.rhobs/v1alpha1
@@ -193,7 +216,6 @@ spec:
                   staticConfigs:
                     - targets:
                         - data-science-collector-monitoring.redhat-ods-monitoring.svc:8890
-            # vLLM metrics (federated from user-workload Prometheus)
             - complianceType: musthave
               objectDefinition:
                 apiVersion: monitoring.rhobs/v1alpha1
@@ -224,6 +246,7 @@ spec:
                   staticConfigs:
                     - targets:
                         - prometheus-user-workload.openshift-user-workload-monitoring.svc:9092
+            {{- end }}
 
     # ── NetworkPolicy for ACM observability agents ─────────────────────
     - objectDefinition:

@@ -133,14 +133,14 @@ spec:
           remediationAction: enforce
           severity: low
           object-templates-raw: |
-            {{hub- range (lookup "cluster.open-cluster-management.io/v1" "ManagedCluster" "" "").items hub}}
+            {{hub- range (splitList "," (fromConfigMap "osac-platform" "osac-site-params" "submariner.clusters")) hub}}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: addon.open-cluster-management.io/v1alpha1
                 kind: ManagedClusterAddOn
                 metadata:
                   name: submariner
-                  namespace: '{{hub .metadata.name hub}}'
+                  namespace: '{{hub . hub}}'
                 spec:
                   installNamespace: submariner-operator
             - complianceType: musthave
@@ -149,7 +149,7 @@ spec:
                 kind: SubmarinerConfig
                 metadata:
                   name: submariner
-                  namespace: '{{hub .metadata.name hub}}'
+                  namespace: '{{hub . hub}}'
                 spec:
                   loadBalancerEnable: true
                   gatewayConfig:
