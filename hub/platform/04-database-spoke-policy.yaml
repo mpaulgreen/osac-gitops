@@ -29,7 +29,7 @@ metadata:
       Spoke read-replica: a single-instance CNPG Cluster streaming from the
       hub primary via Submariner cross-cluster DNS. Replication TLS certs are
       distributed from the hub.
-    policy.open-cluster-management.io/hub-templates-options: '{"namespaceSelector":{"include":["maas-db"]}}'
+    policy.open-cluster-management.io/hub-templates-options: '{"namespaceSelector":{"include":["maas-db"]},"serviceAccountName":"osac-hub-templating"}'
 spec:
   remediationAction: enforce
   disabled: false

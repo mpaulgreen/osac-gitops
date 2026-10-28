@@ -148,6 +148,82 @@ spec:
                   .dockerconfigjson: '{{ $globalConfig | toJson | base64enc }}'
             {{- end -}}
 
+    # ── Hub-template SA RBAC for cross-namespace secret access ──────────
+    # The osac-hub-templating SA in osac-platform is used by the hub-
+    # template resolver to evaluate fromSecret/lookup in policies that
+    # distribute secrets from maas-db and redhat-ai-grid namespaces.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-hub-template-rbac
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: osac-hub-templating
+                  namespace: osac-platform
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: osac-hub-templating
+                  namespace: maas-db
+                rules:
+                  - apiGroups: [""]
+                    resources: [secrets]
+                    verbs: [get, list, watch]
+                  - apiGroups: [route.openshift.io]
+                    resources: [routes]
+                    verbs: [get, list, watch]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: osac-hub-templating
+                  namespace: maas-db
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: osac-hub-templating
+                subjects:
+                  - kind: ServiceAccount
+                    name: osac-hub-templating
+                    namespace: osac-platform
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: osac-hub-templating
+                  namespace: redhat-ai-grid
+                rules:
+                  - apiGroups: [""]
+                    resources: [secrets]
+                    verbs: [get, list, watch]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: osac-hub-templating
+                  namespace: redhat-ai-grid
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: osac-hub-templating
+                subjects:
+                  - kind: ServiceAccount
+                    name: osac-hub-templating
+                    namespace: osac-platform
+
     # ── Link pull-secret to default SA for OLM bundle unpack pods ──────
     # OLM unpack jobs use the default SA in openshift-marketplace. The
     # CatalogSource spec.secrets only covers the catalog (gRPC) pod.

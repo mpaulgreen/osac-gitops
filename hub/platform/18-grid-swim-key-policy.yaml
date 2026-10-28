@@ -11,7 +11,7 @@ metadata:
       Distributes the hub's grid-swim-key Secret to all managed clusters.
       SWIM carries membership gossip, and its packets are keyed by one
       grid-wide secret, so every gossiping site needs the hub's bytes.
-    policy.open-cluster-management.io/hub-templates-options: '{"namespaceSelector":{"include":["redhat-ai-grid"]}}'
+    policy.open-cluster-management.io/hub-templates-options: '{"namespaceSelector":{"include":["redhat-ai-grid"]},"serviceAccountName":"osac-hub-templating"}'
 spec:
   remediationAction: enforce
   disabled: false
