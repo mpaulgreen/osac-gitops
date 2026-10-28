@@ -14,3 +14,4 @@ spec:
       apiFormat: openai-chat
       targetModel: facebook/opt-125m
       path: /maas-models/facebook-opt-125m-simulated/v1/chat/completions
+      weight: 1

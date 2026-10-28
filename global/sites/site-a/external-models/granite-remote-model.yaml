@@ -14,3 +14,4 @@ spec:
       apiFormat: openai-chat
       targetModel: granite-3.1-8b-instruct-fp8
       path: /maas-models/granite-3-1-8b-fp8/v1/chat/completions
+      weight: 1
