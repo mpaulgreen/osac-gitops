@@ -83,6 +83,70 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "osac-cli",
+      "name": "OSAC CLI",
+      "description": "OSAC command line interface for testing",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "redirectUris": ["http://localhost"],
+      "webOrigins": ["http://localhost"],
+      "defaultClientScopes": [
+        "basic",
+        "acr",
+        "profile",
+        "email",
+        "roles",
+        "web-origins"
+      ],
+      "optionalClientScopes": ["organization"],
+      "protocolMappers": [
+        {
+          "name": "MaaS tenant groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "maas_groups",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "MaaS audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "tenant-demo",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "MaaS access token purpose",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "token_use",
+            "claim.value": "access",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "identityProviders": [
@@ -255,6 +319,56 @@
           ]
         }
       ]
+    }
+  ],
+  "users": [
+    {
+      "username": "novatech-admin",
+      "firstName": "NovaTech",
+      "lastName": "Admin",
+      "email": "novatech-admin@novatech.com",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+      "attributes": {
+        "maas_groups": ["novatech-platform-admins"]
+      }
+    },
+    {
+      "username": "novatech-free",
+      "firstName": "NovaTech",
+      "lastName": "Free",
+      "email": "novatech-free@novatech.com",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+      "attributes": {
+        "maas_groups": ["novatech-free-users"]
+      }
+    },
+    {
+      "username": "novatech-premium",
+      "firstName": "NovaTech",
+      "lastName": "Premium",
+      "email": "novatech-premium@novatech.com",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+      "attributes": {
+        "maas_groups": ["novatech-premium-users"]
+      }
+    },
+    {
+      "username": "novatech-enterprise",
+      "firstName": "NovaTech",
+      "lastName": "Enterprise",
+      "email": "novatech-enterprise@novatech.com",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+      "attributes": {
+        "maas_groups": ["novatech-enterprise-users"]
+      }
     }
   ]
 }

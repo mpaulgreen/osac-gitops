@@ -427,6 +427,631 @@ spec:
                 metadata:
                   name: keycloak-realm-import
                   namespace: maas-db
+                data:
+                  saas-realm.json: |
+                    {
+                      "realm": "saas",
+                      "keycloakVersion": "26.8.0",
+                      "accessTokenLifespan": 21600,
+                      "ssoSessionIdleTimeout": 21600,
+                      "enabled": true,
+                      "loginWithEmailAllowed": true,
+                      "organizationsEnabled": true,
+                      "clients": [
+                        {
+                          "clientId": "${KEYCLOAK_CLIENT_ID}",
+                          "name": "Multi-tenant tutorial app",
+                          "baseUrl": "${KEYCLOAK_HOME_URL}",
+                          "enabled": true,
+                          "protocol": "openid-connect",
+                          "clientAuthenticatorType": "client-secret",
+                          "secret": "${KEYCLOAK_CLIENT_SECRET}",
+                          "publicClient": false,
+                          "standardFlowEnabled": true,
+                          "directAccessGrantsEnabled": false,
+                          "redirectUris": ["${KEYCLOAK_REDIRECT_URI}"],
+                          "defaultClientScopes": [
+                            "basic",
+                            "acr",
+                            "profile",
+                            "email",
+                            "roles",
+                            "web-origins"
+                          ],
+                          "optionalClientScopes": ["organization"],
+                          "protocolMappers": [
+                            {
+                              "name": "MaaS tenant groups",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_groups",
+                                "claim.name": "groups",
+                                "jsonType.label": "String",
+                                "multivalued": "true",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "true"
+                              }
+                            },
+                            {
+                              "name": "MaaS organizations",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_orgs_json",
+                                "claim.name": "https://redhat\\.com/maas/orgs",
+                                "jsonType.label": "JSON",
+                                "multivalued": "false",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "true"
+                              }
+                            },
+                            {
+                              "name": "MaaS audience",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-audience-mapper",
+                              "consentRequired": false,
+                              "config": {
+                                "included.client.audience": "tenant-demo",
+                                "id.token.claim": "false",
+                                "access.token.claim": "true"
+                              }
+                            },
+                            {
+                              "name": "MaaS access token purpose",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-hardcoded-claim-mapper",
+                              "consentRequired": false,
+                              "config": {
+                                "claim.name": "token_use",
+                                "claim.value": "access",
+                                "jsonType.label": "String",
+                                "id.token.claim": "false",
+                                "access.token.claim": "true",
+                                "userinfo.token.claim": "false"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "clientId": "osac-cli",
+                          "name": "OSAC CLI",
+                          "description": "OSAC command line interface for testing",
+                          "enabled": true,
+                          "publicClient": true,
+                          "standardFlowEnabled": true,
+                          "directAccessGrantsEnabled": true,
+                          "serviceAccountsEnabled": false,
+                          "protocol": "openid-connect",
+                          "fullScopeAllowed": true,
+                          "redirectUris": ["http://localhost"],
+                          "webOrigins": ["http://localhost"],
+                          "defaultClientScopes": [
+                            "basic",
+                            "acr",
+                            "profile",
+                            "email",
+                            "roles",
+                            "web-origins"
+                          ],
+                          "optionalClientScopes": ["organization"],
+                          "protocolMappers": [
+                            {
+                              "name": "MaaS tenant groups",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_groups",
+                                "claim.name": "groups",
+                                "jsonType.label": "String",
+                                "multivalued": "true",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "true"
+                              }
+                            },
+                            {
+                              "name": "MaaS audience",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-audience-mapper",
+                              "consentRequired": false,
+                              "config": {
+                                "included.client.audience": "tenant-demo",
+                                "id.token.claim": "false",
+                                "access.token.claim": "true"
+                              }
+                            },
+                            {
+                              "name": "MaaS access token purpose",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-hardcoded-claim-mapper",
+                              "consentRequired": false,
+                              "config": {
+                                "claim.name": "token_use",
+                                "claim.value": "access",
+                                "jsonType.label": "String",
+                                "id.token.claim": "false",
+                                "access.token.claim": "true",
+                                "userinfo.token.claim": "false"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "identityProviders": [
+                        {
+                          "alias": "grid-tenant-1",
+                          "displayName": "Grid Tenant 1",
+                          "providerId": "oidc",
+                          "enabled": true,
+                          "trustEmail": true,
+                          "hideOnLogin": true,
+                          "config": {
+                            "clientId": "saas-broker",
+                            "clientSecret": "${GRID_TENANT_1_BROKER_CLIENT_SECRET}",
+                            "clientAuthMethod": "client_secret_post",
+                            "issuer": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp",
+                            "authorizationUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp/protocol/openid-connect/auth",
+                            "tokenUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp/protocol/openid-connect/token",
+                            "userInfoUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp/protocol/openid-connect/userinfo",
+                            "logoutUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp/protocol/openid-connect/logout",
+                            "jwksUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-1-idp/protocol/openid-connect/certs",
+                            "useJwksUrl": "true",
+                            "validateSignature": "true",
+                            "defaultScope": "openid email profile"
+                          }
+                        },
+                        {
+                          "alias": "grid-tenant-2",
+                          "displayName": "Grid Tenant 2",
+                          "providerId": "oidc",
+                          "enabled": true,
+                          "trustEmail": true,
+                          "hideOnLogin": true,
+                          "config": {
+                            "clientId": "saas-broker",
+                            "clientSecret": "${GRID_TENANT_2_BROKER_CLIENT_SECRET}",
+                            "clientAuthMethod": "client_secret_post",
+                            "issuer": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp",
+                            "authorizationUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp/protocol/openid-connect/auth",
+                            "tokenUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp/protocol/openid-connect/token",
+                            "userInfoUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp/protocol/openid-connect/userinfo",
+                            "logoutUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp/protocol/openid-connect/logout",
+                            "jwksUrl": "${KEYCLOAK_PUBLIC_URL}/realms/grid-tenant-2-idp/protocol/openid-connect/certs",
+                            "useJwksUrl": "true",
+                            "validateSignature": "true",
+                            "defaultScope": "openid email profile"
+                          }
+                        }
+                      ],
+                      "identityProviderMappers": [
+                        {
+                          "name": "Grid Tenant 1 groups",
+                          "identityProviderAlias": "grid-tenant-1",
+                          "identityProviderMapper": "oidc-user-attribute-idp-mapper",
+                          "config": {
+                            "claim": "groups",
+                            "user.attribute": "maas_groups",
+                            "syncMode": "FORCE"
+                          }
+                        },
+                        {
+                          "name": "Grid Tenant 1 organizations transport",
+                          "identityProviderAlias": "grid-tenant-1",
+                          "identityProviderMapper": "oidc-user-attribute-idp-mapper",
+                          "config": {
+                            "claim": "https://redhat\\.com/maas/orgs",
+                            "user.attribute": "maas_orgs_json",
+                            "syncMode": "FORCE"
+                          }
+                        },
+                        {
+                          "name": "Grid Tenant 2 groups",
+                          "identityProviderAlias": "grid-tenant-2",
+                          "identityProviderMapper": "oidc-user-attribute-idp-mapper",
+                          "config": {
+                            "claim": "groups",
+                            "user.attribute": "maas_groups",
+                            "syncMode": "FORCE"
+                          }
+                        },
+                        {
+                          "name": "Grid Tenant 2 organizations transport",
+                          "identityProviderAlias": "grid-tenant-2",
+                          "identityProviderMapper": "oidc-user-attribute-idp-mapper",
+                          "config": {
+                            "claim": "https://redhat\\.com/maas/orgs",
+                            "user.attribute": "maas_orgs_json",
+                            "syncMode": "FORCE"
+                          }
+                        }
+                      ],
+                      "components": {
+                        "org.keycloak.keys.KeyProvider": [
+                          {
+                            "id": "c20d0bd2-97fa-4e59-98df-5c9c873bfc66",
+                            "name": "saas-signing",
+                            "providerId": "java-keystore",
+                            "subComponents": {},
+                            "config": {
+                              "kid": ["c20d0bd2-97fa-4e59-98df-5c9c873bfc66"],
+                              "priority": ["1000"],
+                              "enabled": ["true"],
+                              "active": ["true"],
+                              "algorithm": ["RS256"],
+                              "keyUse": ["SIG"],
+                              "keystore": ["/opt/keycloak/data/saas/keystore.jks"],
+                              "keystoreType": ["JKS"],
+                              "keystorePassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"],
+                              "keyAlias": ["saas-signing"],
+                              "keyPassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"]
+                            }
+                          }
+                        ],
+                        "org.keycloak.userprofile.UserProfileProvider": [
+                          {
+                            "id": "b5919e8a-046d-47e7-8a2c-f30f5ff12000",
+                            "providerId": "declarative-user-profile",
+                            "subComponents": {},
+                            "config": {
+                              "config-pieces-count": ["1"],
+                              "config-piece-0": ["{\"unmanagedAttributePolicy\":\"ADMIN_EDIT\"}"]
+                            }
+                          }
+                        ]
+                      },
+                      "organizations": [
+                        {
+                          "name": "Grid Tenant 1",
+                          "alias": "grid-tenant-1",
+                          "enabled": true,
+                          "domains": [
+                            {
+                              "name": "grid-tenant-1.test",
+                              "verified": false,
+                              "identityProviderAlias": "grid-tenant-1",
+                              "autoRedirect": true
+                            }
+                          ],
+                          "identityProviders": [
+                            {
+                              "alias": "grid-tenant-1",
+                              "organizationLinks": [
+                                {
+                                  "autoMembership": true,
+                                  "membershipType": "UNMANAGED"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Grid Tenant 2",
+                          "alias": "grid-tenant-2",
+                          "enabled": true,
+                          "domains": [
+                            {
+                              "name": "grid-tenant-2.test",
+                              "verified": false,
+                              "identityProviderAlias": "grid-tenant-2",
+                              "autoRedirect": true
+                            }
+                          ],
+                          "identityProviders": [
+                            {
+                              "alias": "grid-tenant-2",
+                              "organizationLinks": [
+                                {
+                                  "autoMembership": true,
+                                  "membershipType": "UNMANAGED"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "users": [
+                        {
+                          "username": "novatech-admin",
+                          "firstName": "NovaTech",
+                          "lastName": "Admin",
+                          "email": "novatech-admin@novatech.com",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+                          "attributes": {
+                            "maas_groups": ["novatech-platform-admins"]
+                          }
+                        },
+                        {
+                          "username": "novatech-free",
+                          "firstName": "NovaTech",
+                          "lastName": "Free",
+                          "email": "novatech-free@novatech.com",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+                          "attributes": {
+                            "maas_groups": ["novatech-free-users"]
+                          }
+                        },
+                        {
+                          "username": "novatech-premium",
+                          "firstName": "NovaTech",
+                          "lastName": "Premium",
+                          "email": "novatech-premium@novatech.com",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+                          "attributes": {
+                            "maas_groups": ["novatech-premium-users"]
+                          }
+                        },
+                        {
+                          "username": "novatech-enterprise",
+                          "firstName": "NovaTech",
+                          "lastName": "Enterprise",
+                          "email": "novatech-enterprise@novatech.com",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "credentials": [{"type": "password", "value": "password123", "temporary": false}],
+                          "attributes": {
+                            "maas_groups": ["novatech-enterprise-users"]
+                          }
+                        }
+                      ]
+                    }
+                  grid-tenant-1-idp-realm.json: |
+                    {
+                      "realm": "grid-tenant-1-idp",
+                      "keycloakVersion": "26.8.0",
+                      "accessTokenLifespan": 21600,
+                      "ssoSessionIdleTimeout": 21600,
+                      "enabled": true,
+                      "loginWithEmailAllowed": true,
+                      "clients": [
+                        {
+                          "clientId": "saas-broker",
+                          "name": "SaaS broker for Grid Tenant 1",
+                          "enabled": true,
+                          "protocol": "openid-connect",
+                          "clientAuthenticatorType": "client-secret",
+                          "secret": "${GRID_TENANT_1_BROKER_CLIENT_SECRET}",
+                          "publicClient": false,
+                          "standardFlowEnabled": true,
+                          "directAccessGrantsEnabled": false,
+                          "redirectUris": [
+                            "${KEYCLOAK_PUBLIC_URL}/realms/saas/broker/grid-tenant-1/endpoint"
+                          ],
+                          "attributes": {
+                            "post.logout.redirect.uris": "${KEYCLOAK_PUBLIC_URL}/realms/saas/broker/grid-tenant-1/endpoint/logout_response"
+                          },
+                          "protocolMappers": [
+                            {
+                              "name": "MaaS tenant groups",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_groups",
+                                "claim.name": "groups",
+                                "jsonType.label": "String",
+                                "multivalued": "true",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "false"
+                              }
+                            },
+                            {
+                              "name": "MaaS organization transport",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_orgs_json",
+                                "claim.name": "https://redhat\\.com/maas/orgs",
+                                "jsonType.label": "String",
+                                "multivalued": "false",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "false"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "components": {
+                        "org.keycloak.keys.KeyProvider": [
+                          {
+                            "id": "3e4c96cc-b3b4-48d0-bab6-cb67fffc6cfb",
+                            "name": "grid-tenant-1-idp-signing",
+                            "providerId": "java-keystore",
+                            "subComponents": {},
+                            "config": {
+                              "kid": ["3e4c96cc-b3b4-48d0-bab6-cb67fffc6cfb"],
+                              "priority": ["1000"],
+                              "enabled": ["true"],
+                              "active": ["true"],
+                              "algorithm": ["RS256"],
+                              "keyUse": ["SIG"],
+                              "keystore": ["/opt/keycloak/data/grid-tenant-1-idp/keystore.jks"],
+                              "keystoreType": ["JKS"],
+                              "keystorePassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"],
+                              "keyAlias": ["grid-tenant-1-idp-signing"],
+                              "keyPassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"]
+                            }
+                          }
+                        ],
+                        "org.keycloak.userprofile.UserProfileProvider": [
+                          {
+                            "id": "b5919e8a-046d-47e7-8a2c-f30f5ff12001",
+                            "providerId": "declarative-user-profile",
+                            "subComponents": {},
+                            "config": {
+                              "config-pieces-count": ["1"],
+                              "config-piece-0": ["{\"unmanagedAttributePolicy\":\"ADMIN_EDIT\"}"]
+                            }
+                          }
+                        ]
+                      },
+                      "groups": [
+                        {
+                          "name": "42c3e46f-2477-44d7-a85b-d3b43f6b31fa",
+                          "subGroups": [
+                            { "name": "ai-grid-admins" },
+                            { "name": "ai-grid-users" }
+                          ]
+                        }
+                      ],
+                      "users": [
+                        {
+                          "username": "alice",
+                          "email": "alice@grid-tenant-1.test",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "firstName": "Alice",
+                          "lastName": "Tenant",
+                          "groups": [
+                            "/42c3e46f-2477-44d7-a85b-d3b43f6b31fa/ai-grid-admins",
+                            "/42c3e46f-2477-44d7-a85b-d3b43f6b31fa/ai-grid-users"
+                          ],
+                          "attributes": {
+                            "maas_groups": [
+                              "42c3e46f-2477-44d7-a85b-d3b43f6b31fa/ai-grid-admins",
+                              "42c3e46f-2477-44d7-a85b-d3b43f6b31fa/ai-grid-users"
+                            ],
+                            "maas_orgs_json": [
+                              "[{\"organization_id\":\"42c3e46f-2477-44d7-a85b-d3b43f6b31fa\",\"roles\":[\"admins\"]}]"
+                            ]
+                          },
+                          "credentials": [
+                            {
+                              "type": "password",
+                              "value": "${GRID_TENANT_1_TEST_USER_PASSWORD}",
+                              "temporary": false
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  grid-tenant-2-idp-realm.json: |
+                    {
+                      "realm": "grid-tenant-2-idp",
+                      "keycloakVersion": "26.8.0",
+                      "accessTokenLifespan": 21600,
+                      "ssoSessionIdleTimeout": 21600,
+                      "enabled": true,
+                      "loginWithEmailAllowed": true,
+                      "clients": [
+                        {
+                          "clientId": "saas-broker",
+                          "name": "SaaS broker for Grid Tenant 2",
+                          "enabled": true,
+                          "protocol": "openid-connect",
+                          "clientAuthenticatorType": "client-secret",
+                          "secret": "${GRID_TENANT_2_BROKER_CLIENT_SECRET}",
+                          "publicClient": false,
+                          "standardFlowEnabled": true,
+                          "directAccessGrantsEnabled": false,
+                          "redirectUris": [
+                            "${KEYCLOAK_PUBLIC_URL}/realms/saas/broker/grid-tenant-2/endpoint"
+                          ],
+                          "attributes": {
+                            "post.logout.redirect.uris": "${KEYCLOAK_PUBLIC_URL}/realms/saas/broker/grid-tenant-2/endpoint/logout_response"
+                          },
+                          "protocolMappers": [
+                            {
+                              "name": "MaaS tenant groups",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-group-membership-mapper",
+                              "config": {
+                                "claim.name": "groups",
+                                "full.path": "false",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "false"
+                              }
+                            },
+                            {
+                              "name": "MaaS organization transport",
+                              "protocol": "openid-connect",
+                              "protocolMapper": "oidc-usermodel-attribute-mapper",
+                              "config": {
+                                "user.attribute": "maas_orgs_json",
+                                "claim.name": "https://redhat\\.com/maas/orgs",
+                                "jsonType.label": "String",
+                                "multivalued": "false",
+                                "id.token.claim": "true",
+                                "userinfo.token.claim": "true",
+                                "access.token.claim": "false"
+                              }
+                            }
+                          ]
+                        }
+                      ],
+                      "components": {
+                        "org.keycloak.keys.KeyProvider": [
+                          {
+                            "id": "4a4ac51a-0896-4d94-a5f8-f499a41d1d12",
+                            "name": "grid-tenant-2-idp-signing",
+                            "providerId": "java-keystore",
+                            "subComponents": {},
+                            "config": {
+                              "kid": ["4a4ac51a-0896-4d94-a5f8-f499a41d1d12"],
+                              "priority": ["1000"],
+                              "enabled": ["true"],
+                              "active": ["true"],
+                              "algorithm": ["RS256"],
+                              "keyUse": ["SIG"],
+                              "keystore": ["/opt/keycloak/data/grid-tenant-2-idp/keystore.jks"],
+                              "keystoreType": ["JKS"],
+                              "keystorePassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"],
+                              "keyAlias": ["grid-tenant-2-idp-signing"],
+                              "keyPassword": ["${KEYCLOAK_SIGNING_KEYSTORE_PASSWORD}"]
+                            }
+                          }
+                        ],
+                        "org.keycloak.userprofile.UserProfileProvider": [
+                          {
+                            "id": "b5919e8a-046d-47e7-8a2c-f30f5ff12002",
+                            "providerId": "declarative-user-profile",
+                            "subComponents": {},
+                            "config": {
+                              "config-pieces-count": ["1"],
+                              "config-piece-0": ["{\"unmanagedAttributePolicy\":\"ADMIN_EDIT\"}"]
+                            }
+                          }
+                        ]
+                      },
+                      "groups": [
+                        { "name": "53d4f57e-3588-55e8-b96c-4ec54a7c42fa/ai-grid-users" }
+                      ],
+                      "users": [
+                        {
+                          "username": "bob",
+                          "email": "bob@grid-tenant-2.test",
+                          "emailVerified": true,
+                          "enabled": true,
+                          "firstName": "Bob",
+                          "lastName": "Tenant",
+                          "groups": [
+                            "/53d4f57e-3588-55e8-b96c-4ec54a7c42fa/ai-grid-users"
+                          ],
+                          "attributes": {
+                            "maas_orgs_json": [
+                              "[{\"organization_id\":\"53d4f57e-3588-55e8-b96c-4ec54a7c42fa\",\"roles\":[\"users\"]}]"
+                            ]
+                          },
+                          "credentials": [
+                            {
+                              "type": "password",
+                              "value": "${GRID_TENANT_2_TEST_USER_PASSWORD}",
+                              "temporary": false
+                            }
+                          ]
+                        }
+                      ]
+                    }
 
     # ── Keycloak Deployment + Service ──────────────────────────────────
     - objectDefinition:
