@@ -54,14 +54,7 @@ spec:
                 spec:
                   applicationsNamespace: redhat-ods-applications
                   monitoring:
-                    managementState: Managed
-                    namespace: redhat-ods-monitoring
-                    metrics:
-                      storage:
-                        size: 20Gi
-                      exporters:
-                        prometheus/rhacm:
-                          endpoint: 0.0.0.0:8890
+                    managementState: Removed
                   trustedCABundle:
                     customCABundle: ""
                     managementState: Managed
