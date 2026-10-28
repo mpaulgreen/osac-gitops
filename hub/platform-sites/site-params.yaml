@@ -14,7 +14,7 @@ data:
   # --- local-cluster: site-a, the hub (hub), CPU only ---
   local-cluster.rhoai-channel: "stable-3.6"
   local-cluster.rhoai-source: "rhoai-catalog-dev"
-  local-cluster.rhoai-fbc-image: "quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:58f8056d17a1092b05e3de859234e82ef3e208de43bc52176a56587cc50dfa6f"
+  local-cluster.rhoai-fbc-image: "quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:b391d03387b879daffc0e803734e806b40fab7f886bca1ab6788f9beb918fa8e"
   local-cluster.cluster-domain: "apps.hub.kni.syseng.devcluster.openshift.com"
   local-cluster.identity-issuer: "https://keycloak.apps.hub.kni.syseng.devcluster.openshift.com/realms/saas"
   local-cluster.grid-enabled: "true"
@@ -36,7 +36,7 @@ data:
   # --- site-b: spoke (site-b-cluster), workers are g5.2xlarge: 1x NVIDIA A10G (24GB), 8 vCPU, 32 GiB ---
   site-b.rhoai-channel: "stable-3.6"
   site-b.rhoai-source: "rhoai-catalog-dev"
-  site-b.rhoai-fbc-image: "quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:58f8056d17a1092b05e3de859234e82ef3e208de43bc52176a56587cc50dfa6f"
+  site-b.rhoai-fbc-image: "quay.io/rhoai/rhoai-fbc-fragment:rhoai-3.6@sha256:b391d03387b879daffc0e803734e806b40fab7f886bca1ab6788f9beb918fa8e"
   site-b.cluster-domain: "apps.osacmaas.kni.syseng.devcluster.openshift.com"
   site-b.identity-issuer: "https://keycloak.apps.hub.kni.syseng.devcluster.openshift.com/realms/saas"
   site-b.grid-enabled: "true"
