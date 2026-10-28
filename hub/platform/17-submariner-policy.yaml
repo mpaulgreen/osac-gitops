@@ -82,39 +82,6 @@ spec:
                   globalnetCidrRange: '"242.0.0.0/8"'
                   globalnetClusterSize: "65536"
 
-    # ── Per-site Submariner addon + config ────────────────────────────
-    # Hub template: creates ManagedClusterAddOn and SubmarinerConfig in
-    # the managed cluster's namespace on the hub.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-submariner-site-addon
-        spec:
-          remediationAction: enforce
-          severity: low
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: addon.open-cluster-management.io/v1alpha1
-                kind: ManagedClusterAddOn
-                metadata:
-                  name: submariner
-                  namespace: '{{ .ManagedClusterName }}'
-                spec:
-                  installNamespace: submariner-operator
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: submarineraddon.open-cluster-management.io/v1alpha1
-                kind: SubmarinerConfig
-                metadata:
-                  name: submariner
-                  namespace: '{{ .ManagedClusterName }}'
-                spec:
-                  loadBalancerEnable: true
-                  gatewayConfig:
-                    gateways: 2
-
     # ── Gateway node labels ────────────────────────────────────────────
     # Label worker nodes as Submariner gateways so the operator knows
     # which nodes to use for cross-cluster tunnels.
@@ -139,3 +106,68 @@ spec:
                     submariner.io/gateway: "true"
             {{- end }}
             {{- end }}
+---
+# Hub-only: ManagedClusterAddOn and SubmarinerConfig are hub-side
+# resources that live in each managed cluster's namespace on the hub.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-submariner-addon
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Hub-only: creates per-site ManagedClusterAddOn and SubmarinerConfig
+      in each managed cluster's namespace on the hub.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-submariner-site-addon
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{hub- range (lookup "cluster.open-cluster-management.io/v1" "ManagedCluster" "" "").items hub}}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: addon.open-cluster-management.io/v1alpha1
+                kind: ManagedClusterAddOn
+                metadata:
+                  name: submariner
+                  namespace: '{{hub .metadata.name hub}}'
+                spec:
+                  installNamespace: submariner-operator
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: submarineraddon.open-cluster-management.io/v1alpha1
+                kind: SubmarinerConfig
+                metadata:
+                  name: submariner
+                  namespace: '{{hub .metadata.name hub}}'
+                spec:
+                  loadBalancerEnable: true
+                  gatewayConfig:
+                    gateways: 2
+            {{hub- end hub}}
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: osac-submariner-addon
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: osac-hub-only
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: osac-submariner-addon
