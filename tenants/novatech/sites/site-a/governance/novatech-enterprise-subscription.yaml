@@ -9,13 +9,13 @@ spec:
     groups:
       - name: novatech-enterprise-users
   modelRefs:
-    - name: facebook-opt-125m-grid
-      namespace: models-as-a-service
+    - name: facebook-opt-125m
+      namespace: ai-grid-internal-models
       tokenRateLimits:
         - limit: 100000
           window: 1m
-    - name: smollm2-135m-instruct-grid
-      namespace: models-as-a-service
+    - name: granite-remote
+      namespace: external-models
       tokenRateLimits:
         - limit: 100000
           window: 1m

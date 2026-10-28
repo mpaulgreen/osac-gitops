@@ -2,9 +2,9 @@
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: facebook-opt-125m
+  name: granite-3-1-8b-fp8
   namespace: ai-grid-internal-models
 spec:
   modelRef:
     kind: LLMInferenceService
-    name: facebook-opt-125m
+    name: granite-3-1-8b-fp8

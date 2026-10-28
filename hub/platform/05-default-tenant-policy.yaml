@@ -8,9 +8,9 @@ metadata:
     osac.io/platform: "true"
   annotations:
     policy.open-cluster-management.io/description: >-
-      Creates the AITenant, MaasTenantConfig, Grid ExternalProvider,
-      and all governance/model/grid namespaces for the RHOAI 3.6 MaaS
-      platform. Replaces the 3.5.1 Tenant CR.
+      Creates the AITenant, MaasTenantConfig, and all governance/model/grid
+      namespaces for the RHOAI 3.6 MaaS platform. Replaces the 3.5.1
+      Tenant CR.
 spec:
   remediationAction: enforce
   disabled: false
@@ -131,44 +131,3 @@ spec:
                       captureUser: true
                       captureOrganization: true
 
-    # ── Grid ExternalProvider ───────────────────────────────────────────
-    # In-cluster Grid gateway connection. The API key is a static
-    # placeholder — the grid gateway does not validate it for local calls.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-external-provider
-        spec:
-          remediationAction: enforce
-          severity: low
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: v1
-                kind: Secret
-                metadata:
-                  name: grid-maas-upstream
-                  namespace: models-as-a-service
-                type: Opaque
-                stringData:
-                  api-key: "dW51c2VkLWJ5LWNsdXN0ZXItbG9jYWwtZ3JpZA=="
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: inference.opendatahub.io/v1alpha1
-                kind: ExternalProvider
-                metadata:
-                  name: grid-provider
-                  namespace: models-as-a-service
-                  annotations:
-                    inference.opendatahub.io/port: "443"
-                    inference.opendatahub.io/tls: "true"
-                spec:
-                  auth:
-                    secretRef:
-                      name: grid-maas-upstream
-                    type: apikey
-                  endpoint: grid-gateway.redhat-ai-grid.svc.cluster.local
-                  provider: openai
-                  config:
-                    tls.caCertificates: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
