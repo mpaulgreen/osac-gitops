@@ -133,5 +133,5 @@ spec:
                   namespace: redhat-ai-gateway-infra
                 type: Opaque
                 data:
-                  DB_CONNECTION_URL: {{ printf "postgresql://%s:%s@maas-db-rw.maas-db.svc:5432/%s?sslmode=verify-ca" $user $pw $db | base64enc }}
+                  DB_CONNECTION_URL: {{ printf "postgresql://%s:%s@maas-db-rw.maas-db.svc:5432/%s?sslmode=require" $user $pw $db | base64enc }}
             {{- end -}}
