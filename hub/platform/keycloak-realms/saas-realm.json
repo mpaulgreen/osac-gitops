@@ -15,10 +15,10 @@
       "protocol": "openid-connect",
       "clientAuthenticatorType": "client-secret",
       "secret": "${KEYCLOAK_CLIENT_SECRET}",
-      "publicClient": false,
+      "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "redirectUris": ["${KEYCLOAK_REDIRECT_URI}"],
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["${KEYCLOAK_REDIRECT_URI}", "http://localhost"],
       "defaultClientScopes": [
         "basic",
         "acr",
@@ -52,70 +52,6 @@
             "claim.name": "https://redhat\\.com/maas/orgs",
             "jsonType.label": "JSON",
             "multivalued": "false",
-            "id.token.claim": "true",
-            "userinfo.token.claim": "true",
-            "access.token.claim": "true"
-          }
-        },
-        {
-          "name": "MaaS audience",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-audience-mapper",
-          "consentRequired": false,
-          "config": {
-            "included.client.audience": "tenant-demo",
-            "id.token.claim": "false",
-            "access.token.claim": "true"
-          }
-        },
-        {
-          "name": "MaaS access token purpose",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-hardcoded-claim-mapper",
-          "consentRequired": false,
-          "config": {
-            "claim.name": "token_use",
-            "claim.value": "access",
-            "jsonType.label": "String",
-            "id.token.claim": "false",
-            "access.token.claim": "true",
-            "userinfo.token.claim": "false"
-          }
-        }
-      ]
-    },
-    {
-      "clientId": "osac-cli",
-      "name": "OSAC CLI",
-      "description": "OSAC command line interface for testing",
-      "enabled": true,
-      "publicClient": true,
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "protocol": "openid-connect",
-      "fullScopeAllowed": true,
-      "redirectUris": ["http://localhost"],
-      "webOrigins": ["http://localhost"],
-      "defaultClientScopes": [
-        "basic",
-        "acr",
-        "profile",
-        "email",
-        "roles",
-        "web-origins"
-      ],
-      "optionalClientScopes": ["organization"],
-      "protocolMappers": [
-        {
-          "name": "MaaS tenant groups",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "config": {
-            "user.attribute": "maas_groups",
-            "claim.name": "groups",
-            "jsonType.label": "String",
-            "multivalued": "true",
             "id.token.claim": "true",
             "userinfo.token.claim": "true",
             "access.token.claim": "true"
