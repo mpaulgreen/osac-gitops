@@ -75,6 +75,15 @@ spec:
                     spec:
                       containers:
                         - name: operator
+                          command:
+                            - sh
+                            - -c
+                            - >-
+                              unset GRID_SWIM_BIND_ADDR
+                              GRID_SWIM_ADVERTISE_ADDR
+                              GRID_SWIM_ADVERTISE_FALLBACK
+                              GRID_SWIM_SERVICE_NAME
+                              && exec /usr/local/bin/operator
                           env:
                             - name: GRID_SITE_NAME
                               value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
