@@ -371,7 +371,7 @@ spec:
                         generate: true
                         clusterEndpoints:
                           - cluster: peer-site-b
-                            address: "site-b.grid.internal:443"
+                            address: "a876f62ae5a7b416880658eeba6c586b-1680873343.ca-central-1.elb.amazonaws.com:443"
                             transport:
                               mode: mutual_tls
                               sni: "site-b.grid.internal"
