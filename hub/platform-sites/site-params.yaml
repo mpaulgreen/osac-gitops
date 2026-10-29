@@ -35,6 +35,10 @@ data:
   site-b.grid-peer-signals-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
   site-b.grid-peer-cluster-name: "peer-grid"
   site-b.grid-peer-provider-host: "a53f19ee6ff80414bae7668138bce15e-1654389735.ca-central-1.elb.amazonaws.com:443"
+  # Per-site provider gateway local backend — the inference endpoint that
+  # the provider gateway forwards to after mTLS termination.
+  local-cluster.grid-provider-backend: "127.0.0.1:9080"
+  site-b.grid-provider-backend: "granite-3-1-8b-fp8-kserve-workload-svc.ai-grid-internal-models.svc.cluster.local:8000"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---

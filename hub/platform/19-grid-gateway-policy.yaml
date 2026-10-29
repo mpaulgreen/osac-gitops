@@ -179,8 +179,10 @@ spec:
                       - filter: load_balancer
                         clusters:
                         - name: local-passthrough
+                          tls:
+                            verify: false
                           endpoints:
-                          - "127.0.0.1:9080"
+                          - '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-provider-backend" .ManagedClusterName) hub}}'
                     admin:
                       metrics_address: "127.0.0.1:9901"
                     shutdown_timeout_secs: 30
