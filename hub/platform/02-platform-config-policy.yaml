@@ -36,6 +36,9 @@ spec:
                     enableUserWorkload: true
 
     # ── DSCInitialization ───────────────────────────────────────────────
+    # The CNPG CA is read from maas-db-ca-mirror (mirrored by Policy 00)
+    # and injected into customCABundle so the RHOAI operator includes it
+    # in odh-trusted-ca-bundle, fixing the maas-api x509 crash loop.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -44,7 +47,11 @@ spec:
         spec:
           remediationAction: enforce
           severity: low
-          object-templates:
+          evaluationInterval:
+            compliant: 10m
+            noncompliant: 1m
+          object-templates-raw: |
+            {{hub- $caPEM := fromSecret "osac-platform" "maas-db-ca-mirror" "ca.crt" hub}}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: dscinitialization.opendatahub.io/v2
@@ -56,7 +63,12 @@ spec:
                   monitoring:
                     managementState: Removed
                   trustedCABundle:
+                    {{hub- if (ne $caPEM "") }}
+                    customCABundle: |
+                      {{hub $caPEM | base64dec | autoindent hub}}
+                    {{hub- else }}
                     customCABundle: ""
+                    {{hub- end }}
                     managementState: Managed
 
     # ── DataScienceCluster ──────────────────────────────────────────────
