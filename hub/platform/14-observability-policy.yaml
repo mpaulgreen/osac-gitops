@@ -9,9 +9,13 @@ metadata:
   annotations:
     policy.open-cluster-management.io/description: >-
       Configures observability for the MaaS platform: ScrapeConfigs for
-      grid, grid-operator, epp, vllm, and rhai metrics; ServiceAccounts
-      and ClusterRoleBindings for metrics readers; NetworkPolicy for
-      ACM observability agents to reach the RHOAI OTel collector.
+      grid, grid-operator, epp, vllm, gpu-platform, and rhai metrics;
+      ServiceAccounts and ClusterRoleBindings for metrics readers;
+      NetworkPolicy for ACM observability agents to reach the RHOAI
+      OTel collector. UWM and GPU ScrapeConfigs deploy in redhat-ai-grid
+      (all clusters) so MCO spoke collectors forward custom metrics to
+      hub Thanos without relying on the custom-allowlist ConfigMap
+      propagation (broken under MCOA).
 spec:
   remediationAction: enforce
   disabled: false
@@ -57,6 +61,39 @@ spec:
                 subjects:
                   - kind: ServiceAccount
                     name: grid-epp-metrics-reader
+                    namespace: redhat-ai-grid
+            # UWM federate reader (all clusters — needed for vllm-metrics
+            # ScrapeConfig to read recording rules from UWM Prometheus)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: grid-uwm-federate-reader
+                  namespace: redhat-ai-grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-uwm-federate-reader-token
+                  namespace: redhat-ai-grid
+                  annotations:
+                    kubernetes.io/service-account.name: grid-uwm-federate-reader
+                type: kubernetes.io/service-account-token
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: grid-uwm-federate-reader
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: cluster-monitoring-view
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-uwm-federate-reader
                     namespace: redhat-ai-grid
 
     # ── UWM federate reader RBAC (ACM observability namespace) ─────────
@@ -188,8 +225,65 @@ spec:
                   staticConfigs:
                     - targets:
                         - facebook-opt-125m-epp-service.ai-grid-internal-models.svc:9090
+            # vLLM/KServe recording rules + EPP metrics (UWM federate)
+            # Deployed in redhat-ai-grid so spokes pick it up via MCO
+            # PrometheusAgent (MCOA doesn't propagate custom-allowlist).
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: uwm-federate-metrics
+                  namespace: redhat-ai-grid
+                  labels:
+                    app.kubernetes.io/component: user-workload-metrics-collector
+                spec:
+                  jobName: uwm-federate-metrics
+                  metricsPath: /federate
+                  scrapeInterval: 30s
+                  scheme: HTTPS
+                  params:
+                    match[]:
+                      - '{__name__=~"(vllm|kserve_vllm):.*"}'
+                      - '{__name__=~"llm_d_epp_.*|praxis_workload_status|http_requests_total"}'
+                  authorization:
+                    credentials:
+                      name: grid-uwm-federate-reader-token
+                      key: token
+                  tlsConfig:
+                    ca:
+                      configMap:
+                        name: openshift-service-ca.crt
+                        key: service-ca.crt
+                    serverName: prometheus-user-workload.openshift-user-workload-monitoring.svc
+                  staticConfigs:
+                    - targets:
+                        - prometheus-user-workload.openshift-user-workload-monitoring.svc:9092
+            # GPU and accelerator metrics (platform Prometheus federate)
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: monitoring.rhobs/v1alpha1
+                kind: ScrapeConfig
+                metadata:
+                  name: gpu-platform-metrics
+                  namespace: redhat-ai-grid
+                  labels:
+                    app.kubernetes.io/component: platform-metrics-collector
+                spec:
+                  jobName: gpu-platform-metrics
+                  metricsPath: /federate
+                  scrapeInterval: 60s
+                  params:
+                    match[]:
+                      - '{__name__=~"DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_FB_USED|DCGM_FI_DEV_FB_FREE"}'
+                      - '{__name__=~"accelerator_gpu_utilization|cluster:usage:consumption:rhods:gpu:.*"}'
+                  staticConfigs:
+                    - targets:
+                        - prometheus-k8s.openshift-monitoring.svc:9091
 
-    # ── ScrapeConfigs for ACM observability namespace ──────────────────
+    # ── ScrapeConfigs for ACM observability namespace (hub-only) ──────
+    # rhai-metrics targets the OTel collector which only runs on hub.
+    # vllm-metrics moved to redhat-ai-grid (all-clusters) above.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -216,37 +310,6 @@ spec:
                   staticConfigs:
                     - targets:
                         - data-science-collector-monitoring.redhat-ods-monitoring.svc:8890
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: monitoring.rhobs/v1alpha1
-                kind: ScrapeConfig
-                metadata:
-                  name: vllm-metrics
-                  namespace: open-cluster-management-observability
-                  labels:
-                    app.kubernetes.io/component: user-workload-metrics-collector
-                spec:
-                  jobName: vllm-metrics
-                  metricsPath: /federate
-                  scrapeInterval: 30s
-                  scheme: HTTPS
-                  params:
-                    match[]:
-                      - '{__name__=~"(vllm|kserve_vllm):.*"}'
-                      - '{__name__=~"llm_d_epp_.*|accelerator_gpu_utilization|praxis_workload_status|http_requests_total"}'
-                  authorization:
-                    credentials:
-                      name: grid-uwm-federate-reader-token
-                      key: token
-                  tlsConfig:
-                    ca:
-                      configMap:
-                        name: openshift-service-ca.crt
-                        key: service-ca.crt
-                    serverName: prometheus-user-workload.openshift-user-workload-monitoring.svc
-                  staticConfigs:
-                    - targets:
-                        - prometheus-user-workload.openshift-user-workload-monitoring.svc:9092
             {{- end }}
 
     # ── NetworkPolicy for ACM observability agents ─────────────────────
