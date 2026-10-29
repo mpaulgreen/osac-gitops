@@ -205,7 +205,7 @@ spec:
                   namespace: kuadrant-system
                 spec:
                   observability:
-                    enable: true
+                    enable: false
 
     # ── Authorino (listener TLS on from the start) ──────────────────────
     # odh-model-controller creates the Gateway -> Authorino TLS EnvoyFilter only
