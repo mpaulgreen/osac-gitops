@@ -133,6 +133,8 @@ spec:
                 metadata:
                   name: grid-enrollment-invite
                   namespace: redhat-ai-grid
+                  labels:
+                    grid.praxis.fast/site: '{{hub $siteName hub}}'
                 type: Opaque
                 stringData:
                   token: '{{hub $token hub}}'
