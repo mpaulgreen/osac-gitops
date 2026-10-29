@@ -117,8 +117,8 @@ spec:
                         - name: enrollment
                           image: registry.redhat.io/rhoai/odh-praxis-ai-grid-enrollment-rhel9@sha256:6dcbefe9f5496b014d4d588ec2bc3e295f6fbd3e1c5f2418145672476731b905
                           ports:
-                            - name: http
-                              containerPort: 8080
+                            - name: https
+                              containerPort: 8443
                           env:
                             - name: ENROLLMENT_DB_TYPE
                               value: builtin
@@ -180,9 +180,9 @@ spec:
                   selector:
                     app: grid-enrollment
                   ports:
-                    - name: http
-                      port: 8080
-                      targetPort: http
+                    - name: https
+                      port: 8443
+                      targetPort: https
             - complianceType: musthave
               objectDefinition:
                 apiVersion: route.openshift.io/v1
@@ -196,10 +196,9 @@ spec:
                     kind: Service
                     name: grid-enrollment
                   port:
-                    targetPort: http
+                    targetPort: https
                   tls:
-                    termination: edge
-                    insecureEdgeTerminationPolicy: Redirect
+                    termination: passthrough
 
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:
