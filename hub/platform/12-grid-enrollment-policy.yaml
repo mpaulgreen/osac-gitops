@@ -155,6 +155,8 @@ spec:
                             - name: https
                               containerPort: 8443
                           env:
+                            - name: RUST_LOG
+                              value: info
                             - name: ENROLLMENT_DB_TYPE
                               value: builtin
                             - name: ENROLLMENT_DB_PATH
