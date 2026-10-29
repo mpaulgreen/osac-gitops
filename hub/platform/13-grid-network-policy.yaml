@@ -226,36 +226,6 @@ spec:
                       targetPort: signals
                       protocol: TCP
 
-    # ── Operator env overrides: use external NLBs ─────────────────────
-    # Point the grid operator at the external Services so it discovers
-    # and advertises publicly-reachable addresses for SWIM and signals.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-operator-ext-svc
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: apps/v1
-                kind: Deployment
-                metadata:
-                  name: grid-operator
-                  namespace: redhat-ai-grid
-                spec:
-                  template:
-                    spec:
-                      containers:
-                        - name: operator
-                          env:
-                            - name: GRID_SWIM_SERVICE_NAME
-                              value: grid-swim-ext
-                            - name: GRID_SIGNALS_SERVICE_NAME
-                              value: grid-signals-ext
-
     # ── GridNetwork CR ────────────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
