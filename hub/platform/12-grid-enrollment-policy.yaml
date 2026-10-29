@@ -266,6 +266,24 @@ spec:
                     - name: https
                       port: 8443
                       targetPort: https
+    # ── Enrollment Route (reencrypt) ────────────────────────────────
+    # The enrollment service TLS cert (from service-serving-signer) has
+    # SANs for the in-cluster DNS only.  A passthrough Route exposes that
+    # cert to external clients, causing a hostname mismatch.  With
+    # reencrypt the router presents the wildcard *.apps cert (Let's
+    # Encrypt, publicly trusted) and re-encrypts to the backend using
+    # the service-serving CA.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-route
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates-raw: |
+            {{- $cm := lookup "v1" "ConfigMap" "openshift-config-managed" "openshift-service-ca.crt" }}
+            {{- if $cm }}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: route.openshift.io/v1
@@ -281,7 +299,10 @@ spec:
                   port:
                     targetPort: https
                   tls:
-                    termination: passthrough
+                    termination: reencrypt
+                    destinationCACertificate: |
+{{ index $cm.data "service-ca.crt" | indent 22 }}
+            {{- end }}
 
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:

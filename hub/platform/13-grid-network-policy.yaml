@@ -102,10 +102,6 @@ spec:
                       name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
                       signerEndpoint:
                         url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-enrollment-host" .ManagedClusterName) hub}}'
-                        caBundleRef:
-                          kind: Secret
-                          name: grid-enrollment-ca
-                          key: ca.crt
                       inviteSecretRef:
                         name: grid-enrollment-invite
                         key: token
