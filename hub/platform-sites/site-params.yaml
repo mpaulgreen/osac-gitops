@@ -26,6 +26,7 @@ data:
   local-cluster.grid-namespace: "redhat-ai-grid"
   local-cluster.grid-peer-spiffe-ids: "spiffe://grid.internal/site/site-b"
   local-cluster.grid-route-host: "local-cluster.grid.internal"
+  local-cluster.grid-operator-site-name: "grid"
   local-cluster.grid-enrollment-host: "grid-enrollment.apps.hub.kni.syseng.devcluster.openshift.com"
   local-cluster.hardware-profiles: |
     [
@@ -47,6 +48,8 @@ data:
   site-b.grid-gateway-name: "grid-gateway"
   site-b.grid-namespace: "redhat-ai-grid"
   site-b.grid-peer-spiffe-ids: "spiffe://grid.internal/site/local-cluster"
+  site-b.grid-operator-site-name: "site-b"
+  site-b.grid-enrollment-host: "grid-enrollment.apps.hub.kni.syseng.devcluster.openshift.com"
   site-b.grid-route-host: "site-b.grid.internal"
   site-b.hardware-profiles: |
     [

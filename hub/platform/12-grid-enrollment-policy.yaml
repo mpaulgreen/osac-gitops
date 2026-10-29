@@ -220,31 +220,29 @@ spec:
                   namespace: redhat-ai-grid
             {{- end }}
 
-    # ── Grid Operator Config ─────────────────────────────────────────
-    # Tells the grid operator where the enrollment/signer service lives
-    # so it can request and renew site certificates.
+    # ── SiteInvite: site-b ───────────────────────────────────────────
+    # Creates a long-lived enrollment invitation for site-b. The spoke's
+    # grid operator uses the generated token to enroll with the hub and
+    # receive its identity certificate.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
-          name: osac-grid-operator-config
+          name: osac-grid-site-invite-site-b
         spec:
           remediationAction: enforce
           severity: high
           object-templates:
             - complianceType: musthave
               objectDefinition:
-                apiVersion: v1
-                kind: ConfigMap
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: SiteInvite
                 metadata:
-                  name: grid-operator-config
-                  namespace: redhat-ai-grid
-                data:
-                  config.yaml: |
-                    site:
-                      name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
-                      signerEndpoint:
-                        url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
+                  name: site-b
+                  namespace: grid-enrollment-invites
+                spec:
+                  siteName: site-b
+                  lifetime: 168h
 
     # ── Declared peer: site-b ──────────────────────────────────────────
     # The hub declares known peers so the grid gateway can route to them

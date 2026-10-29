@@ -8,14 +8,76 @@ metadata:
     osac.io/platform: "true"
   annotations:
     policy.open-cluster-management.io/description: >-
-      Creates the per-site GridNetwork CR in redhat-ai-grid. Signal transport
-      is poll mode, peer trust is SPIFFE. The grid operator self-signs a CA
-      when the TLS secret refs do not yet exist, which bootstraps trust for
-      new sites before enrollment completes.
+      Per-site grid operator prerequisites: supplementary RBAC (list/watch
+      configmaps+secrets), operator config (site name + signer endpoint),
+      and the GridNetwork CR. Signal transport is poll mode, peer trust is
+      SPIFFE.
 spec:
   remediationAction: enforce
   disabled: false
   policy-templates:
+    # ── Grid Operator RBAC supplement ─────────────────────────────────
+    # The AIGateway controller creates ClusterRole grid-operator-resources
+    # but omits list/watch on configmaps and secrets (RHOAI 3.6 bug).
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-operator-rbac
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRole
+                metadata:
+                  name: osac-grid-operator-supplement
+                rules:
+                  - apiGroups: [""]
+                    resources: ["configmaps", "secrets"]
+                    verbs: ["list", "watch"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: osac-grid-operator-supplement
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: osac-grid-operator-supplement
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-operator
+                    namespace: redhat-ai-grid
+
+    # ── Grid Operator Config ─────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-operator-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: grid-operator-config
+                  namespace: redhat-ai-grid
+                data:
+                  config.yaml: |
+                    site:
+                      name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
+                      signerEndpoint:
+                        url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-enrollment-host" .ManagedClusterName) hub}}'
+
+    # ── GridNetwork CR ────────────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
