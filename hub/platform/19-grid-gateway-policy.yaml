@@ -49,6 +49,9 @@ spec:
                       containers:
                         - name: gateway
                           image: registry.redhat.io/rhoai/odh-praxis-ai-grid-gateway-rhel9@sha256:17b43cd1aeeb879c20c069774391eecd09f48d8920b2262000726ff401a7f54b
+                          args:
+                            - --config
+                            - /etc/praxis/config/praxis.yaml
                           ports:
                             - name: https
                               containerPort: 8443
@@ -72,6 +75,9 @@ spec:
                             - name: listener-tls
                               mountPath: /etc/praxis/listener-tls
                               readOnly: true
+                            - name: praxis-config
+                              mountPath: /etc/praxis/config
+                              readOnly: true
                       volumes:
                         - name: tls-identity
                           projected:
@@ -83,6 +89,9 @@ spec:
                         - name: listener-tls
                           secret:
                             secretName: grid-gateway-listener-tls
+                        - name: praxis-config
+                          configMap:
+                            name: praxis-consumer-config
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
