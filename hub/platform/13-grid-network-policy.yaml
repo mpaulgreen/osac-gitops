@@ -80,6 +80,8 @@ spec:
                               value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
                             - name: GRID_SIGNALS_ADVERTISE_ADDR
                               value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-signals-ext-host" .ManagedClusterName) hub}}'
+                            - name: GRID_MEMBERSHIP_SOURCE
+                              value: Local
 
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
@@ -170,51 +172,6 @@ spec:
                 data:
                   ca.crt: '{{hub $caCert hub}}'
             {{hub- end hub}}
-
-    # ── AIGateway grid: Unmanaged ─────────────────────────────────────
-    # Stop AIGateway from reconciling grid-operator resources so we can
-    # override the SWIM NLB annotation without a controller fight.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-aigateway-unmanaged
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: components.platform.opendatahub.io/v1alpha1
-                kind: AIGateway
-                metadata:
-                  name: default-aigateway
-                spec:
-                  aiGrid:
-                    managementState: Unmanaged
-
-    # ── External SWIM NLB ────────────────────────────────────────────
-    # With AIGateway Unmanaged for aiGrid, this override sticks.
-    # RHOAI 3.6 creates grid-operator-swim with externalTrafficPolicy
-    # Local + healthCheckNodePort, making NLBs viable for UDP SWIM.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-swim-external-nlb
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: v1
-                kind: Service
-                metadata:
-                  name: grid-operator-swim
-                  namespace: redhat-ai-grid
-                  annotations:
-                    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
 
     # ── Submariner SWIM Service + Export (fallback) ────────────────────
     # Kept as fallback: ClusterIP Service + ServiceExport gives a
