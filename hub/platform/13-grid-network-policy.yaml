@@ -121,6 +121,34 @@ spec:
                       mode: Mutual
                       serverName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-server-name" .ManagedClusterName) hub}}'
 
+    # ── Local GridSite gateway endpoint ─────────────────────────────
+    # In Local mode, gateway discovery doesn't auto-populate the local
+    # GridSite's gatewayEndpoint.  Set it so the operator advances the
+    # local site past AwaitingDiscovery.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-local-gridsite
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: GridSite
+                metadata:
+                  name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
+                  namespace: redhat-ai-grid
+                spec:
+                  gridNetworkRef: grid
+                  gatewayEndpoint:
+                    address: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-gateway-host" .ManagedClusterName) hub}}'
+                    tls:
+                      mode: Mutual
+                      serverName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}.grid.internal'
+
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
