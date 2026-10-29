@@ -125,7 +125,9 @@ spec:
                             - name: ENROLLMENT_DB_PATH
                               value: /var/lib/enrollment/db
                             - name: ENROLLMENT_CA_CERT
-                              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                              value: /etc/grid-ca/ca.crt
+                            - name: ENROLLMENT_CA_KEY
+                              value: /etc/grid-ca/ca.key
                             - name: ENROLLMENT_AUTHZ
                               value: kube
                             - name: ENROLLMENT_HUB_SITE_NAME
@@ -145,10 +147,16 @@ spec:
                           volumeMounts:
                             - name: db
                               mountPath: /var/lib/enrollment/db
+                            - name: grid-ca
+                              mountPath: /etc/grid-ca
+                              readOnly: true
                       volumes:
                         - name: db
                           persistentVolumeClaim:
                             claimName: grid-enrollment-db
+                        - name: grid-ca
+                          secret:
+                            secretName: grid-ca
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
