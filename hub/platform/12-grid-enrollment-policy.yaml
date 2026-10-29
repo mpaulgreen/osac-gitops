@@ -272,7 +272,7 @@ spec:
     # cert to external clients, causing a hostname mismatch.  With
     # reencrypt the router presents the wildcard *.apps cert (Let's
     # Encrypt, publicly trusted) and re-encrypts to the backend using
-    # the service-serving CA.
+    # the service-serving CA (trusted by the router by default).
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -281,9 +281,7 @@ spec:
         spec:
           remediationAction: enforce
           severity: high
-          object-templates-raw: |
-            {{- $cm := lookup "v1" "ConfigMap" "openshift-config-managed" "openshift-service-ca.crt" }}
-            {{- if $cm }}
+          object-templates:
             - complianceType: musthave
               objectDefinition:
                 apiVersion: route.openshift.io/v1
@@ -300,9 +298,6 @@ spec:
                     targetPort: https
                   tls:
                     termination: reencrypt
-                    destinationCACertificate: |
-{{ index $cm.data "service-ca.crt" | indent 22 }}
-            {{- end }}
 
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:
