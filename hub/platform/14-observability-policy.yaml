@@ -260,13 +260,16 @@ spec:
                     - targets:
                         - prometheus-user-workload.openshift-user-workload-monitoring.svc:9092
             # GPU and accelerator metrics (platform Prometheus federate)
+            # Must be in open-cluster-management-agent-addon: the platform
+            # PrometheusAgent has no scrapeConfigNamespaceSelector, so it
+            # only discovers ScrapeConfigs in its own namespace.
             - complianceType: musthave
               objectDefinition:
                 apiVersion: monitoring.rhobs/v1alpha1
                 kind: ScrapeConfig
                 metadata:
                   name: gpu-platform-metrics
-                  namespace: redhat-ai-grid
+                  namespace: open-cluster-management-agent-addon
                   labels:
                     app.kubernetes.io/component: platform-metrics-collector
                 spec:
