@@ -171,12 +171,32 @@ spec:
                   ca.crt: '{{hub $caCert hub}}'
             {{hub- end hub}}
 
+    # ── AIGateway grid: Unmanaged ─────────────────────────────────────
+    # Stop AIGateway from reconciling grid-operator resources so we can
+    # override the SWIM NLB annotation without a controller fight.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-aigateway-unmanaged
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: components.platform.opendatahub.io/v1alpha1
+                kind: AIGateway
+                metadata:
+                  name: default-aigateway
+                spec:
+                  aiGrid:
+                    managementState: Unmanaged
+
     # ── External SWIM NLB ────────────────────────────────────────────
-    # RHOAI 3.6's AIGateway creates grid-operator-swim with
-    # externalTrafficPolicy: Local + healthCheckNodePort, making NLBs
-    # viable for UDP SWIM (unlike the POC where TCP health checks failed
-    # for UDP-only services). Override the internal annotation so the
-    # operator discovers a public IP and remote peers can reach SWIM.
+    # With AIGateway Unmanaged for aiGrid, this override sticks.
+    # RHOAI 3.6 creates grid-operator-swim with externalTrafficPolicy
+    # Local + healthCheckNodePort, making NLBs viable for UDP SWIM.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
