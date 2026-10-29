@@ -76,7 +76,7 @@ spec:
                     spec:
                       containers:
                         - name: enrollment
-                          image: registry.redhat.io/rhoai/odh-praxis-ai-grid-enrollment-rhel9@sha256:dc18cc2d5ae92c4f7e67a25e5a2b18e9a72a3e4b5e6c7d8f9a0b1c2d3e4f5a6b
+                          image: registry.redhat.io/rhoai/odh-praxis-ai-grid-enrollment-rhel9@sha256:6dcbefe9f5496b014d4d588ec2bc3e295f6fbd3e1c5f2418145672476731b905
                           ports:
                             - name: http
                               containerPort: 8080
