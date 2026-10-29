@@ -343,6 +343,29 @@ spec:
                   namespace: redhat-ai-grid
             {{- end }}
 
+    # ── Hub GridNetwork swim settings (local lookup, no hub-template) ──
+    # The all-sites GridNetwork CR policy uses hub-template, which fails
+    # on local-cluster. Patch the hub's GridNetwork directly to set the
+    # correct suspicionTimeout (default 10s is too aggressive for WAN).
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-hub-gridnetwork-swim
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: GridNetwork
+                metadata:
+                  name: grid
+                spec:
+                  swim:
+                    suspicionTimeout: 1h
+
     # ── SiteInvite: site-b ───────────────────────────────────────────
     # Creates a long-lived enrollment invitation for site-b. The spoke's
     # grid operator uses the generated token to enroll with the hub and
