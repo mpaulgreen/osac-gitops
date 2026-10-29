@@ -145,6 +145,41 @@ spec:
           object-templates:
             - complianceType: musthave
               objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: praxis-provider-config
+                  namespace: redhat-ai-grid
+                data:
+                  praxis.yaml: |
+                    listeners:
+                    - name: provider
+                      address: 0.0.0.0:8443
+                      filter_chains:
+                      - provider-chain
+                      tls:
+                        certificates:
+                        - cert_path: /etc/praxis/tls/tls.crt
+                          key_path: /etc/praxis/tls/tls.key
+                        client_ca:
+                          ca_path: /etc/praxis/tls/ca.crt
+                        client_cert_mode: require
+                    filter_chains:
+                    - name: provider-chain
+                      filters:
+                      - filter: json_body_field
+                        field: model
+                        header: X-Model
+                      - filter: load_balancer
+                        clusters:
+                        - name: local-passthrough
+                          endpoints:
+                          - "127.0.0.1:9080"
+                    admin:
+                      metrics_address: "127.0.0.1:9901"
+                    shutdown_timeout_secs: 30
+            - complianceType: musthave
+              objectDefinition:
                 apiVersion: apps/v1
                 kind: Deployment
                 metadata:
@@ -165,6 +200,9 @@ spec:
                       containers:
                         - name: gateway
                           image: registry.redhat.io/rhoai/odh-praxis-ai-grid-gateway-rhel9@sha256:17b43cd1aeeb879c20c069774391eecd09f48d8920b2262000726ff401a7f54b
+                          args:
+                            - --config
+                            - /etc/praxis/config/praxis.yaml
                           ports:
                             - name: https
                               containerPort: 8443
@@ -183,6 +221,9 @@ spec:
                             - name: tls-identity
                               mountPath: /etc/praxis/tls
                               readOnly: true
+                            - name: praxis-config
+                              mountPath: /etc/praxis/config
+                              readOnly: true
                       volumes:
                         - name: tls-identity
                           projected:
@@ -191,6 +232,9 @@ spec:
                                   name: grid-site-identity
                               - secret:
                                   name: grid-ca
+                        - name: praxis-config
+                          configMap:
+                            name: praxis-provider-config
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
