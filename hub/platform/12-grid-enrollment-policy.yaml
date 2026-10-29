@@ -343,39 +343,6 @@ spec:
                   namespace: redhat-ai-grid
             {{- end }}
 
-    # ── Hub GridNetwork praxisConfig (local lookup, no hub-template) ──
-    # Hub-templates cannot resolve on local-cluster, so the all-sites
-    # osac-gridnetwork-cr policy cannot enforce praxisConfig here.
-    # Patch the hub's GridNetwork directly with consumer gateway config.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-hub-gridnetwork-praxis
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: grid.praxis.fast/v1alpha1
-                kind: GridNetwork
-                metadata:
-                  name: grid
-                spec:
-                  consumerGateways:
-                    - name: grid-gateway
-                      namespace: redhat-ai-grid
-                      siteName: local-cluster
-                      praxisConfig:
-                        generate: true
-                        clusterEndpoints:
-                          - cluster: peer-site-b
-                            address: "a876f62ae5a7b416880658eeba6c586b-1680873343.ca-central-1.elb.amazonaws.com:443"
-                            transport:
-                              mode: mutual_tls
-                              sni: "site-b.grid.internal"
-
     # ── SiteInvite: site-b ───────────────────────────────────────────
     # Creates a long-lived enrollment invitation for site-b. The spoke's
     # grid operator uses the generated token to enroll with the hub and
