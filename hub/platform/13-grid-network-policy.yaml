@@ -77,7 +77,7 @@ spec:
                         - name: operator
                           env:
                             - name: GRID_SITE_NAME
-                              value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-site-name" .ManagedClusterName) hub}}'
+                              value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
 
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
@@ -161,7 +161,7 @@ spec:
                     grid.praxis.fast/signer-bundle: "true"
                 type: Opaque
                 data:
-                  ca.crt: '{{hub $caCert | base64enc hub}}'
+                  ca.crt: '{{hub $caCert hub}}'
             {{hub- end hub}}
 
     # ── GridNetwork CR ────────────────────────────────────────────────
