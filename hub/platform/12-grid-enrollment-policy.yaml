@@ -242,7 +242,7 @@ spec:
                 data:
                   config.yaml: |
                     site:
-                      name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-site-name" .ManagedClusterName) hub}}'
+                      name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
                       signerEndpoint:
                         url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
 
