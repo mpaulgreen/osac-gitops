@@ -32,7 +32,11 @@ spec:
                 metadata:
                   name: grid-enrollment-invites
 
-    # ── Grid Operator RBAC (missing ClusterRole) ─────────────────────
+    # ── Grid Operator RBAC supplement ─────────────────────────────────
+    # The AIGateway controller creates ClusterRole grid-operator-resources
+    # but omits list/watch on configmaps and secrets (RHOAI 3.6 bug).
+    # A separate ClusterRole+Binding avoids being overwritten by the
+    # AIGateway reconciler.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -47,24 +51,25 @@ spec:
                 apiVersion: rbac.authorization.k8s.io/v1
                 kind: ClusterRole
                 metadata:
-                  name: grid-operator-resources
-                  labels:
-                    app.kubernetes.io/instance: grid-operator
-                    app.kubernetes.io/name: grid-operator
-                    app.kubernetes.io/part-of: aigateway
+                  name: osac-grid-operator-supplement
                 rules:
                   - apiGroups: [""]
-                    resources: ["configmaps"]
-                    verbs: ["get", "list", "watch"]
-                  - apiGroups: [""]
-                    resources: ["secrets"]
-                    verbs: ["get", "list", "watch", "create", "update", "patch"]
-                  - apiGroups: [""]
-                    resources: ["services", "serviceaccounts"]
-                    verbs: ["get", "list", "watch"]
-                  - apiGroups: ["apps"]
-                    resources: ["deployments"]
-                    verbs: ["get", "list", "watch", "create", "update", "patch"]
+                    resources: ["configmaps", "secrets"]
+                    verbs: ["list", "watch"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: osac-grid-operator-supplement
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: osac-grid-operator-supplement
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-operator
+                    namespace: redhat-ai-grid
 
     # ── Grid Enrollment Service ───────────────────────────────────────
     - objectDefinition:
