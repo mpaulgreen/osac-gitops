@@ -175,6 +175,8 @@ spec:
                         - name: local-passthrough
                           endpoints:
                           - "127.0.0.1:9080"
+                          trusted_private_endpoints:
+                          - "127.0.0.1"
                     admin:
                       metrics_address: "127.0.0.1:9901"
                     shutdown_timeout_secs: 30
