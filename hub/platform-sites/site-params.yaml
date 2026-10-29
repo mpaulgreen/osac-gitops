@@ -9,6 +9,8 @@ metadata:
   name: osac-site-params
   namespace: osac-platform
 data:
+  # Grid-wide identifier shared by all sites in this mesh
+  grid.id: "fbdc9cea-9a03-40f9-81ca-8dcb882a45e3"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---

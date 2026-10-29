@@ -32,6 +32,7 @@ spec:
                 metadata:
                   name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
                 spec:
+                  gridId: '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.id" hub}}'
                   signalTransport:
                     mode: poll
                   peerTrust:
