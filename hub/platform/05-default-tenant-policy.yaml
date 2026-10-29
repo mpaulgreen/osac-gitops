@@ -127,7 +127,4 @@ spec:
                       captureUser: true
                       captureGroup: true
                       captureOrganization: true
-                    logs:
-                      captureUser: true
-                      captureOrganization: true
 
