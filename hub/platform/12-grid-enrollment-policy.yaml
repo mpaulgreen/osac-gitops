@@ -294,6 +294,35 @@ spec:
                   tls:
                     termination: passthrough
 
+    # ── Hub enrollment CA (local lookup, no hub-template addon) ────────
+    # object-templates-raw with {{hub ... hub}} requires the
+    # governance-standalone-hub-templating addon on local-cluster.
+    # Instead, the hub creates grid-enrollment-ca directly via lookup.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-hub-enrollment-ca
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates-raw: |
+            {{- $gridCA := lookup "v1" "Secret" "redhat-ai-grid" "grid-ca" }}
+            {{- if $gridCA }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-enrollment-ca
+                  namespace: redhat-ai-grid
+                  labels:
+                    grid.praxis.fast/signer-bundle: "true"
+                type: Opaque
+                data:
+                  ca.crt: '{{ index $gridCA.data "ca.crt" }}'
+            {{- end }}
+
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1

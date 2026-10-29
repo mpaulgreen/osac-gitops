@@ -154,7 +154,7 @@ spec:
           severity: high
           object-templates-raw: |
             {{hub- $caCert := fromSecret "osac-platform" "grid-ca-mirror" "ca.crt" hub}}
-            {{hub- if ne $caCert "" hub}}
+            {{hub- if and (ne .ManagedClusterName "local-cluster") (ne $caCert "") hub}}
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
