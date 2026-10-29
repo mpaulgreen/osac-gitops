@@ -156,7 +156,9 @@ spec:
                               containerPort: 8443
                           env:
                             - name: RUST_LOG
-                              value: trace
+                              value: info
+                            - name: GRID_NETWORK
+                              value: grid
                             - name: ENROLLMENT_DB_TYPE
                               value: builtin
                             - name: ENROLLMENT_DB_PATH
