@@ -154,6 +154,7 @@ spec:
                   praxis.yaml: |
                     insecure_options:
                       allow_private_endpoints: true
+                      allow_tls_no_verify: true
                     listeners:
                     - name: provider
                       address: 0.0.0.0:8443
