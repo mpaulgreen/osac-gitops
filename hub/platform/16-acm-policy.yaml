@@ -11,9 +11,11 @@ metadata:
       Installs Advanced Cluster Management: operator namespace and
       OperatorGroup, ACM Subscription, MultiClusterHub, observability
       namespace, ObjectBucketClaim for Thanos storage, the Thanos bridge
-      Job that renders the object-storage secret from the OBC, and
-      MultiClusterObservability. Also deploys the governance-policy-framework
-      and config-policy-controller ClusterManagementAddOns.
+      Job that renders the object-storage secret from the OBC,
+      MultiClusterObservability, and the custom metrics allowlist for
+      GPU, inference, and workload metrics forwarding. Also deploys the
+      governance-policy-framework and config-policy-controller
+      ClusterManagementAddOns.
 spec:
   remediationAction: enforce
   disabled: false
@@ -302,6 +304,76 @@ spec:
                       metrics:
                         default:
                           enabled: true
+
+    # ── Custom Metrics Allowlist ──────────────────────────────────────
+    # Adds GPU, inference, and workload metrics to the MCO default
+    # allowlist so spoke collectors forward them to hub Thanos.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-acm-custom-allowlist
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: observability-metrics-custom-allowlist
+                  namespace: open-cluster-management-observability
+                data:
+                  metrics_list.yaml: |
+                    names:
+                      - DCGM_FI_DEV_GPU_UTIL
+                      - DCGM_FI_DEV_GPU_TEMP
+                      - DCGM_FI_DEV_FB_USED
+                      - DCGM_FI_DEV_FB_FREE
+                      - accelerator_gpu_utilization
+                      - cluster:usage:consumption:rhods:gpu:utilization:avg
+                      - cluster:usage:consumption:rhods:gpu:memory_utilization:avg
+                      - cluster:usage:consumption:rhods:gpu:temperature:max
+                      - cluster:usage:consumption:rhods:gpu:memory_used:sum
+                      - cluster:usage:consumption:rhods:gpu:power:sum
+                      - cluster:usage:consumption:rhods:gpu:count
+                  uwl_metrics_list.yaml: |
+                    names:
+                      - kserve_vllm:num_requests_running
+                      - kserve_vllm:num_requests_waiting
+                      - kserve_vllm:request_success_total
+                      - kserve_vllm:generation_tokens_total
+                      - kserve_vllm:prompt_tokens_total
+                      - kserve_vllm:e2e_request_latency_seconds_bucket
+                      - kserve_vllm:time_to_first_token_seconds_bucket
+                      - kserve_vllm:time_per_output_token_seconds_bucket
+                      - kserve_vllm:prefix_cache_hits_total
+                      - kserve_vllm:prefix_cache_queries_total
+                      - kserve_vllm:kv_cache_usage_perc
+                      - kserve_vllm:request_prefill_time_seconds_bucket
+                      - kserve_vllm:request_decode_time_seconds_bucket
+                      - kserve_vllm:num_preemptions_total
+                      - llm_d_epp_scheduler_e2e_duration_seconds_bucket
+                      - llm_d_epp_request_error_total
+                      - llm_d_epp_request_total
+                      - llm_d_epp_per_endpoint_queue_size
+                      - llm_d_epp_ready_endpoints
+                      - llm_d_epp_average_queue_size
+                      - llm_d_epp_request_running
+                      - llm_d_epp_request_slo_violation_total
+                      - llm_d_epp_flow_control_pool_saturation
+                      - llm_d_epp_average_kv_cache_utilization
+                      - vllm:num_requests_running
+                      - vllm:num_requests_waiting
+                      - vllm:request_success_total
+                      - vllm:generation_tokens_total
+                      - vllm:prompt_tokens_total
+                      - vllm:e2e_request_latency_seconds_bucket
+                      - vllm:kv_cache_usage_perc
+                      - vllm:prompt_tokens_cached_total
+                      - praxis_workload_status
+                      - http_requests_total
 
     # ── Policy Addon Placement ────────────────────────────────────────
     - objectDefinition:

@@ -232,7 +232,8 @@ spec:
                   scheme: HTTPS
                   params:
                     match[]:
-                      - '{__name__=~"vllm:.*"}'
+                      - '{__name__=~"(vllm|kserve_vllm):.*"}'
+                      - '{__name__=~"llm_d_epp_.*|accelerator_gpu_utilization|praxis_workload_status|http_requests_total"}'
                   authorization:
                     credentials:
                       name: grid-uwm-federate-reader-token
