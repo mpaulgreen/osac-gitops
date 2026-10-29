@@ -152,6 +152,8 @@ spec:
                   namespace: redhat-ai-grid
                 data:
                   praxis.yaml: |
+                    insecure_options:
+                      allow_private_endpoints: true
                     listeners:
                     - name: provider
                       address: 0.0.0.0:8443
@@ -171,8 +173,6 @@ spec:
                         field: model
                         header: X-Model
                       - filter: load_balancer
-                        insecure_options:
-                          allow_private_endpoints: true
                         clusters:
                         - name: local-passthrough
                           endpoints:
