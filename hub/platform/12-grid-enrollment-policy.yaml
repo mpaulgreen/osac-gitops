@@ -15,6 +15,50 @@ spec:
   remediationAction: enforce
   disabled: false
   policy-templates:
+    # ── Enrollment Service NetworkPolicy ──────────────────────────────
+    # The namespace-wide allow-acm-grid-metrics policy (podSelector: {})
+    # default-denies all ingress except ACM metrics ports.  The enrollment
+    # service must be reachable on 8443 from the OpenShift router (Route
+    # passthrough) and from Submariner traffic (cross-cluster).
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-netpol
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: allow-grid-enrollment
+                  namespace: redhat-ai-grid
+                spec:
+                  podSelector:
+                    matchLabels:
+                      app: grid-enrollment
+                  policyTypes:
+                    - Ingress
+                  ingress:
+                    - ports:
+                        - port: 8443
+                          protocol: TCP
+                        - port: 8080
+                          protocol: TCP
+                      from:
+                        - namespaceSelector:
+                            matchLabels:
+                              network.openshift.io/policy-group: ingress
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: submariner-operator
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: redhat-ai-grid
+
     # ── grid-enrollment-invites namespace ───────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
