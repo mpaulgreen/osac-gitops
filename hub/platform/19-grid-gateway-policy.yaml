@@ -172,6 +172,10 @@ spec:
                       - filter: json_body_field
                         field: model
                         header: X-Model
+                      - filter: router
+                        routes:
+                        - path_prefix: "/"
+                          cluster: local-passthrough
                       - filter: load_balancer
                         clusters:
                         - name: local-passthrough
