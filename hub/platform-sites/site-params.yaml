@@ -11,6 +11,8 @@ metadata:
 data:
   # Grid-wide identifier shared by all sites in this mesh
   grid.id: "fbdc9cea-9a03-40f9-81ca-8dcb882a45e3"
+  # Hub SWIM endpoint — every spoke uses this as a SWIM seed
+  grid.hub-swim-host: "a891fd25bfad640929d138212755f238-49a418d32bf2a4a5.elb.ca-central-1.amazonaws.com"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---

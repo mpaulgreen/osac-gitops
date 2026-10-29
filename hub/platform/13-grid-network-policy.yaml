@@ -187,6 +187,8 @@ spec:
                   name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
                 spec:
                   gridId: '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.id" hub}}'
+                  seeds:
+                    - '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.hub-swim-host" hub}}:7946'
                   signalTransport:
                     mode: poll
                   peerTrust:
