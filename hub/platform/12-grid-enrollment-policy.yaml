@@ -257,8 +257,6 @@ spec:
                 metadata:
                   name: grid-enrollment
                   namespace: redhat-ai-grid
-                  annotations:
-                    service.beta.openshift.io/serving-cert-secret-name: grid-enrollment-tls
                 spec:
                   selector:
                     app: grid-enrollment
@@ -266,13 +264,10 @@ spec:
                     - name: https
                       port: 8443
                       targetPort: https
-    # ── Enrollment Route (reencrypt) ────────────────────────────────
-    # The enrollment service TLS cert (from service-serving-signer) has
-    # SANs for the in-cluster DNS only.  A passthrough Route exposes that
-    # cert to external clients, causing a hostname mismatch.  With
-    # reencrypt the router presents the wildcard *.apps cert (Let's
-    # Encrypt, publicly trusted) and re-encrypts to the backend using
-    # the service-serving CA (trusted by the router by default).
+    # ── Enrollment Route (passthrough) ──────────────────────────────
+    # The enrollment TLS cert is now signed by the grid CA with SANs
+    # for both internal DNS and the Route hostname, so passthrough works
+    # and the spoke operator sees the grid-CA-signed cert directly.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -297,7 +292,7 @@ spec:
                   port:
                     targetPort: https
                   tls:
-                    termination: reencrypt
+                    termination: passthrough
 
     # ── ServiceExport for grid-enrollment ──────────────────────────────
     - objectDefinition:

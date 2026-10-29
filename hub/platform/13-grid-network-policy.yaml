@@ -141,9 +141,9 @@ spec:
             {{hub- end hub}}
 
     # ── Enrollment CA bundle (spoke sites) ────────────────────────────
-    # With reencrypt the Route presents the wildcard *.apps cert (Let's
-    # Encrypt).  The spoke operator verifies it via caBundleRef, so the
-    # Secret must contain the ingress cert chain (not the service-serving CA).
+    # The enrollment TLS cert is signed by the grid CA, and the spoke
+    # operator uses caBundleRef as BOTH the TLS verification CA and
+    # the pinned grid CA.  Distributing the grid CA satisfies both.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -153,7 +153,7 @@ spec:
           remediationAction: enforce
           severity: high
           object-templates-raw: |
-            {{hub- $caCert := fromSecret "osac-platform" "hub-ingress-ca-mirror" "ca.crt" hub}}
+            {{hub- $caCert := fromSecret "osac-platform" "grid-ca-mirror" "ca.crt" hub}}
             {{hub- if and (ne .ManagedClusterName "local-cluster") (ne $caCert "") hub}}
             - complianceType: musthave
               objectDefinition:
