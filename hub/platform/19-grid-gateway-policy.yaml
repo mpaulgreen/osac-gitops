@@ -78,6 +78,9 @@ spec:
                             - name: praxis-config
                               mountPath: /etc/praxis/config
                               readOnly: true
+                            - name: routing-overlay
+                              mountPath: /etc/praxis/routing
+                              readOnly: true
                       volumes:
                         - name: tls-identity
                           projected:
@@ -92,6 +95,9 @@ spec:
                         - name: praxis-config
                           configMap:
                             name: praxis-consumer-config
+                        - name: routing-overlay
+                          configMap:
+                            name: grid-overlay-grid-grid-gateway
             - complianceType: musthave
               objectDefinition:
                 apiVersion: v1
