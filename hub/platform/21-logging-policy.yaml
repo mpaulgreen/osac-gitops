@@ -1,0 +1,271 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-logging
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Hub-only: deploys the centralized LokiStack for RHOAI usage-log
+      aggregation. Creates an OBC for S3 storage via ODF NooBaa, a bridge
+      Job to render the Loki S3 credentials Secret, the LokiStack CR, a
+      Route for spoke OTel collectors, and RBAC for cross-cluster log
+      ingestion. Spoke usage logs flow via OTel Collector → OTLP HTTP →
+      this LokiStack.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── ObjectBucketClaim for Loki ────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-obc
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: objectbucket.io/v1alpha1
+                kind: ObjectBucketClaim
+                metadata:
+                  name: loki-usage-logs
+                  namespace: openshift-logging
+                spec:
+                  generateBucketName: loki-usage-logs
+                  storageClassName: openshift-storage.noobaa.io
+
+    # ── Loki bridge RBAC ──────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-bridge-rbac
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: loki-bridge
+                  namespace: openshift-logging
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: loki-bridge
+                  namespace: openshift-logging
+                rules:
+                  - apiGroups: ["objectbucket.io"]
+                    resources: ["objectbucketclaims"]
+                    verbs: ["get", "list", "watch"]
+                  - apiGroups: ["core.objectbucket.io"]
+                    resources: ["objectbuckets"]
+                    verbs: ["get", "list"]
+                  - apiGroups: [""]
+                    resources: ["secrets"]
+                    verbs: ["get", "list", "create", "update", "patch"]
+                  - apiGroups: [""]
+                    resources: ["configmaps"]
+                    verbs: ["get", "list"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: loki-bridge
+                  namespace: openshift-logging
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: loki-bridge
+                subjects:
+                  - kind: ServiceAccount
+                    name: loki-bridge
+                    namespace: openshift-logging
+
+    # ── Loki bridge Job ───────────────────────────────────────────────
+    # Waits for the OBC to bind, then renders the logging-loki-s3
+    # Secret from the OBC-generated credentials. LokiStack expects
+    # individual keys, not a thanos.yaml blob.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-bridge-job
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: batch/v1
+                kind: Job
+                metadata:
+                  name: loki-bridge
+                  namespace: openshift-logging
+                spec:
+                  backoffLimit: 3
+                  ttlSecondsAfterFinished: 3600
+                  template:
+                    spec:
+                      serviceAccountName: loki-bridge
+                      restartPolicy: Never
+                      containers:
+                        - name: bridge
+                          image: registry.redhat.io/openshift4/ose-cli
+                          command:
+                            - /bin/bash
+                            - -c
+                            - |
+                              set -euo pipefail
+                              NS="openshift-logging"
+                              OBC="loki-usage-logs"
+                              SECRET="logging-loki-s3"
+
+                              echo "Waiting for OBC ${OBC} to bind (timeout 900s)"
+                              oc wait --for=jsonpath='{.status.phase}'=Bound \
+                                "objectbucketclaim/${OBC}" -n "${NS}" --timeout=900s
+
+                              read_secret() {
+                                oc get secret "${OBC}" -n "${NS}" \
+                                  -o jsonpath="{.data.$1}" | base64 -d
+                              }
+                              read_cm() {
+                                oc get configmap "${OBC}" -n "${NS}" \
+                                  -o jsonpath="{.data.$1}"
+                              }
+
+                              AK="$(read_secret AWS_ACCESS_KEY_ID)"
+                              SK="$(read_secret AWS_SECRET_ACCESS_KEY)"
+                              HOST="$(read_cm BUCKET_HOST)"
+                              PORT="$(read_cm BUCKET_PORT)"
+                              BUCKET="$(read_cm BUCKET_NAME)"
+                              EP="https://${HOST}:${PORT}"
+
+                              cat <<EOF | oc apply -f -
+                              apiVersion: v1
+                              kind: Secret
+                              metadata:
+                                name: ${SECRET}
+                                namespace: ${NS}
+                              stringData:
+                                access_key_id: "${AK}"
+                                access_key_secret: "${SK}"
+                                bucketnames: "${BUCKET}"
+                                endpoint: "${EP}"
+                                region: ""
+                              EOF
+
+                              echo "Secret ${SECRET} rendered for bucket ${BUCKET} at ${EP}"
+
+    # ── LokiStack ────────────────────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-lokistack
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "lokistacks.loki.grafana.com") }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: loki.grafana.com/v1
+                kind: LokiStack
+                metadata:
+                  name: usage-logs
+                  namespace: openshift-logging
+                spec:
+                  size: 1x.extra-small
+                  storage:
+                    schemas:
+                      - version: v13
+                        effectiveDate: "2024-10-01"
+                    secret:
+                      name: logging-loki-s3
+                      type: s3
+                  storageClassName: gp3-csi
+                  tenants:
+                    mode: openshift-logging
+            {{- end }}
+
+    # ── Gateway Route for spoke OTel collectors ───────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-gateway-route
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- if (lookup "loki.grafana.com/v1" "LokiStack" "openshift-logging" "usage-logs") }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: route.openshift.io/v1
+                kind: Route
+                metadata:
+                  name: usage-logs-gateway
+                  namespace: openshift-logging
+                spec:
+                  to:
+                    kind: Service
+                    name: usage-logs-gateway-http
+                  port:
+                    targetPort: public
+                  tls:
+                    termination: reencrypt
+                    insecureEdgeTerminationPolicy: None
+            {{- end }}
+
+    # ── RBAC for spoke OTel collectors to push logs ───────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-writer-auth
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: usage-log-writer
+                  namespace: openshift-logging
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: usage-log-writer-token
+                  namespace: openshift-logging
+                  annotations:
+                    kubernetes.io/service-account.name: usage-log-writer
+                type: kubernetes.io/service-account-token
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: usage-log-writer
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: logging-collector-logs-writer
+                subjects:
+                  - kind: ServiceAccount
+                    name: usage-log-writer
+                    namespace: openshift-logging

@@ -12,13 +12,16 @@ metadata:
       grid, grid-operator, epp, vllm, gpu-platform, and rhai metrics;
       ServiceAccounts and ClusterRoleBindings for metrics readers;
       NetworkPolicy for ACM observability agents to reach the RHOAI
-      OTel collector. UWM and GPU ScrapeConfigs deploy in redhat-ai-grid
+      OTel collector; OTel Collector for usage-log forwarding to hub
+      LokiStack. UWM and GPU ScrapeConfigs deploy in redhat-ai-grid
       (all clusters) so MCO spoke collectors forward custom metrics to
       hub Thanos without relying on the custom-allowlist ConfigMap
       propagation (broken under MCOA).
 spec:
   remediationAction: enforce
   disabled: false
+  hubTemplateOptions:
+    serviceAccountName: osac-hub-templating
   policy-templates:
     # ── Metrics reader RBAC ────────────────────────────────────────────
     - objectDefinition:
@@ -347,4 +350,140 @@ spec:
                         - port: 9090
                           protocol: TCP
                         - port: 8000
+                          protocol: TCP
+
+    # ── Usage-log hub config (distributed to all clusters) ────────────
+    # Creates a Secret on each cluster containing the hub LokiStack
+    # gateway URL and bearer token. The OTel Collector reads these via
+    # environment variables.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-usage-log-hub-config
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{hub- $route := (lookup "route.openshift.io/v1" "Route" "openshift-logging" "usage-logs-gateway") hub}}
+            {{hub- $token := fromSecret "osac-platform" "usage-log-writer-token-mirror" "token" hub}}
+            {{hub- if and $route $token hub}}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: usage-log-hub-config
+                  namespace: redhat-ods-applications
+                stringData:
+                  gateway_url: '{{hub printf "https://%s/api/logs/v1/application" (index $route.status.ingress 0).host hub}}'
+                  token: '{{hub $token | base64dec hub}}'
+            {{hub- end hub}}
+
+    # ── OTel Collector for usage logs ─────────────────────────────────
+    # Receives structured access logs from the Istio EnvoyFilter via
+    # gRPC ALS and exports to the hub LokiStack via OTLP HTTP.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-usage-log-collector
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates-raw: |
+            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "opentelemetrycollectors.opentelemetry.io") }}
+            {{- $hubConfig := (lookup "v1" "Secret" "redhat-ods-applications" "usage-log-hub-config") }}
+            {{- if $hubConfig }}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: opentelemetry.io/v1beta1
+                kind: OpenTelemetryCollector
+                metadata:
+                  name: usage-logs
+                  namespace: redhat-ods-applications
+                spec:
+                  mode: deployment
+                  replicas: 1
+                  env:
+                    - name: LOKI_ENDPOINT
+                      valueFrom:
+                        secretKeyRef:
+                          name: usage-log-hub-config
+                          key: gateway_url
+                    - name: LOKI_AUTH_TOKEN
+                      valueFrom:
+                        secretKeyRef:
+                          name: usage-log-hub-config
+                          key: token
+                  config:
+                    receivers:
+                      otlp:
+                        protocols:
+                          grpc:
+                            endpoint: 0.0.0.0:4317
+                    processors:
+                      memory_limiter:
+                        limit_mib: 256
+                        spike_limit_mib: 64
+                        check_interval: 5s
+                      resource:
+                        attributes:
+                          - key: service.name
+                            value: models-as-a-service
+                            action: upsert
+                      groupbyattrs:
+                        keys:
+                          - subscription
+                          - model
+                          - response_type
+                      batch:
+                        send_batch_size: 500
+                        timeout: 10s
+                    exporters:
+                      otlphttp/hub:
+                        endpoint: ${LOKI_ENDPOINT}
+                        headers:
+                          Authorization: "Bearer ${LOKI_AUTH_TOKEN}"
+                        tls:
+                          insecure: false
+                    service:
+                      pipelines:
+                        logs:
+                          receivers: [otlp]
+                          processors: [memory_limiter, resource, groupbyattrs, batch]
+                          exporters: [otlphttp/hub]
+            {{- end }}
+            {{- end }}
+
+    # ── NetworkPolicy for usage-log OTel Collector ────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-usage-log-network-policy
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: allow-gateway-to-usage-log-collector
+                  namespace: redhat-ods-applications
+                spec:
+                  podSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: usage-logs-collector
+                  policyTypes:
+                    - Ingress
+                  ingress:
+                    - from:
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: istio-system
+                      ports:
+                        - port: 4317
                           protocol: TCP

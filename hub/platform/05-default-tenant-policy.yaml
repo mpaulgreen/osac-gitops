@@ -128,6 +128,6 @@ spec:
                       captureGroup: true
                       captureOrganization: true
                     logs:
-                      captureUser: false
-                      captureOrganization: false
+                      captureUser: true
+                      captureOrganization: true
 
