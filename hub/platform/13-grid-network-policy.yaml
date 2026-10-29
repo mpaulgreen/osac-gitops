@@ -78,7 +78,7 @@ spec:
                         url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-enrollment-host" .ManagedClusterName) hub}}'
                       inviteSecretRef:
                         name: grid-enrollment-invite
-                        namespace: redhat-ai-grid
+                        key: token
 
     # ── Enrollment invite token (spoke sites) ─────────────────────────
     # Reads the mirrored invite token from osac-platform and creates it
