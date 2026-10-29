@@ -32,45 +32,6 @@ spec:
                 metadata:
                   name: grid-enrollment-invites
 
-    # ── Grid Operator RBAC supplement ─────────────────────────────────
-    # The AIGateway controller creates ClusterRole grid-operator-resources
-    # but omits list/watch on configmaps and secrets (RHOAI 3.6 bug).
-    # A separate ClusterRole+Binding avoids being overwritten by the
-    # AIGateway reconciler.
-    - objectDefinition:
-        apiVersion: policy.open-cluster-management.io/v1
-        kind: ConfigurationPolicy
-        metadata:
-          name: osac-grid-operator-rbac
-        spec:
-          remediationAction: enforce
-          severity: high
-          object-templates:
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: rbac.authorization.k8s.io/v1
-                kind: ClusterRole
-                metadata:
-                  name: osac-grid-operator-supplement
-                rules:
-                  - apiGroups: [""]
-                    resources: ["configmaps", "secrets"]
-                    verbs: ["list", "watch"]
-            - complianceType: musthave
-              objectDefinition:
-                apiVersion: rbac.authorization.k8s.io/v1
-                kind: ClusterRoleBinding
-                metadata:
-                  name: osac-grid-operator-supplement
-                roleRef:
-                  apiGroup: rbac.authorization.k8s.io
-                  kind: ClusterRole
-                  name: osac-grid-operator-supplement
-                subjects:
-                  - kind: ServiceAccount
-                    name: grid-operator
-                    namespace: redhat-ai-grid
-
     # ── Grid Enrollment Service ───────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
@@ -243,6 +204,8 @@ spec:
                 spec:
                   siteName: site-b
                   lifetime: 168h
+                  jurisdictions:
+                    - default
 
     # ── Declared peer: site-b ──────────────────────────────────────────
     # The hub declares known peers so the grid gateway can route to them
