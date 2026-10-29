@@ -144,7 +144,7 @@ spec:
                 spec:
                   gridNetworkRef: grid
                   gatewayEndpoint:
-                    address: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-gateway-host" .ManagedClusterName) hub}}'
+                    address: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-local-signals-host" .ManagedClusterName) hub}}'
                     tls:
                       mode: Mutual
                       serverName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}.grid.internal'

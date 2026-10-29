@@ -17,9 +17,11 @@ data:
   # Per-site external signals NLB for GRID_SIGNALS_ADVERTISE_ADDR
   local-cluster.grid-signals-ext-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
   site-b.grid-signals-ext-host: "a171a6087901643f5871f2a2157c58c8-6d5cc76bf84cf7fb.elb.ca-central-1.amazonaws.com:9091"
-  # Per-site local gateway NLB for setting own GridSite gatewayEndpoint
-  local-cluster.grid-gateway-host: "aa1b1638537a14043a1059b7d5e5cce0-b005645be47ae885.elb.ca-central-1.amazonaws.com:443"
-  site-b.grid-gateway-host: "af4e583da6a2648ebb49164ed36a1a4d-2089e1be5486a2aa.elb.ca-central-1.amazonaws.com:443"
+  # Per-site local signals endpoint for setting own GridSite gatewayEndpoint
+  # Uses the internal signals service (not the NLB) because pods cannot
+  # hairpin through their own cluster's external NLB on AWS.
+  local-cluster.grid-local-signals-host: "grid-operator-signals.redhat-ai-grid.svc:9091"
+  site-b.grid-local-signals-host: "grid-operator-signals.redhat-ai-grid.svc:9091"
   # Per-site peer GridSite config for Local membership mode: each site's
   # peer name, TLS server name (from the peer's grid identity cert DNS SAN),
   # and signals NLB address so the operator knows where to poll.
