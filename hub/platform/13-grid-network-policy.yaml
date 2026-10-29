@@ -169,6 +169,39 @@ spec:
                   ca.crt: '{{hub $caCert hub}}'
             {{hub- end hub}}
 
+    # ── SWIM / signals services: force external NLBs ────────────────
+    # The grid operator creates these Services with
+    # aws-load-balancer-internal: "true", which makes them unreachable
+    # across clusters in separate VPCs. Override to external so cross-
+    # cluster SWIM discovery and signals polling work.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-swim-external-nlb
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-operator-swim
+                  namespace: redhat-ai-grid
+                  annotations:
+                    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-operator-signals
+                  namespace: redhat-ai-grid
+                  annotations:
+                    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+
     # ── GridNetwork CR ────────────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
