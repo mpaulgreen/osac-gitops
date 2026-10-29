@@ -242,7 +242,8 @@ spec:
                 data:
                   config.yaml: |
                     site:
-                      signerEndpoint: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
+                      signerEndpoint:
+                        url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
 
     # ── Declared peer: site-b ──────────────────────────────────────────
     # The hub declares known peers so the grid gateway can route to them
