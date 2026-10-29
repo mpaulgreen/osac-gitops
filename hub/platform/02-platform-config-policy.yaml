@@ -63,7 +63,7 @@ spec:
                   monitoring:
                     managementState: Removed
                   trustedCABundle:
-                    {{hub- if (ne $caPEM "") }}
+                    {{hub- if $caPEM }}
                     customCABundle: |
                       {{hub $caPEM | base64dec | autoindent hub}}
                     {{hub- else }}
