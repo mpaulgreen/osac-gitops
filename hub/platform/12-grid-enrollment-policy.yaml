@@ -85,6 +85,8 @@ spec:
                               value: builtin
                             - name: ENROLLMENT_DB_PATH
                               value: /var/lib/enrollment/db
+                            - name: ENROLLMENT_CA_CERT
+                              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
                             - name: ENROLLMENT_AUTHZ
                               value: kube
                             - name: ENROLLMENT_HUB_SITE_NAME
