@@ -92,7 +92,9 @@ spec:
                   namespace: redhat-ai-grid
                   annotations:
                     service.beta.openshift.io/serving-cert-secret-name: grid-gateway-listener-tls
+                    service.beta.kubernetes.io/aws-load-balancer-type: nlb
                 spec:
+                  type: LoadBalancer
                   selector:
                     app: grid-gateway
                   ports:
@@ -238,3 +240,18 @@ spec:
                               network.openshift.io/policy-group: ingress
                       ports:
                         - port: 8443
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: networking.k8s.io/v1
+                kind: NetworkPolicy
+                metadata:
+                  name: grid-consumer-gateway
+                  namespace: redhat-ai-grid
+                spec:
+                  podSelector:
+                    matchLabels:
+                      app: grid-gateway
+                  ingress:
+                    - ports:
+                        - port: 8443
+                          protocol: TCP
