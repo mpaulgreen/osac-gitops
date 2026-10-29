@@ -136,7 +136,7 @@ spec:
                   labels:
                     grid.praxis.fast/site: '{{hub $siteName hub}}'
                 type: Opaque
-                stringData:
+                data:
                   token: '{{hub $token hub}}'
             {{hub- end hub}}
 
