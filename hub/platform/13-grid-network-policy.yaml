@@ -171,11 +171,34 @@ spec:
                   ca.crt: '{{hub $caCert hub}}'
             {{hub- end hub}}
 
-    # ── Submariner SWIM Service + Export ────────────────────────────────
-    # AWS NLBs don't work for UDP SWIM (gotcha #8 from POC). Cross-cluster
-    # SWIM goes through Submariner instead: a ClusterIP Service exported
-    # via ServiceExport gets a GlobalIngressIP, reachable via IPsec tunnel.
-    # Spokes use the Submariner DNS name as the SWIM seed.
+    # ── External SWIM NLB ────────────────────────────────────────────
+    # RHOAI 3.6's AIGateway creates grid-operator-swim with
+    # externalTrafficPolicy: Local + healthCheckNodePort, making NLBs
+    # viable for UDP SWIM (unlike the POC where TCP health checks failed
+    # for UDP-only services). Override the internal annotation so the
+    # operator discovers a public IP and remote peers can reach SWIM.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-swim-external-nlb
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: grid-operator-swim
+                  namespace: redhat-ai-grid
+                  annotations:
+                    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+
+    # ── Submariner SWIM Service + Export (fallback) ────────────────────
+    # Kept as fallback: ClusterIP Service + ServiceExport gives a
+    # GlobalIngressIP reachable via IPsec tunnel if external NLBs fail.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
@@ -215,7 +238,6 @@ spec:
 
     # ── External signals NLB ─────────────────────────────────────────
     # Signals transport (TCP 9091, poll mode) works over external NLBs.
-    # SWIM (UDP 7946) goes through Submariner instead.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
