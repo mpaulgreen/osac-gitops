@@ -92,6 +92,35 @@ spec:
                             - name: GRID_MEMBERSHIP_SOURCE
                               value: Local
 
+    # ── Peer GridSite gateway endpoint ──────────────────────────────
+    # In Local membership mode the operator needs a dialable endpoint on
+    # each peer GridSite to poll signals.  Set gatewayEndpoint on the
+    # peer GridSite (creating it on the spoke where enrollment only
+    # created the local site).
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-peer-gridsite
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: grid.praxis.fast/v1alpha1
+                kind: GridSite
+                metadata:
+                  name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-site-name" .ManagedClusterName) hub}}'
+                  namespace: redhat-ai-grid
+                spec:
+                  gridNetworkRef: grid
+                  gatewayEndpoint:
+                    address: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-signals-host" .ManagedClusterName) hub}}'
+                    tls:
+                      mode: Mutual
+                      serverName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-server-name" .ManagedClusterName) hub}}'
+
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1

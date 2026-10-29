@@ -17,6 +17,15 @@ data:
   # Per-site external signals NLB for GRID_SIGNALS_ADVERTISE_ADDR
   local-cluster.grid-signals-ext-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
   site-b.grid-signals-ext-host: "a171a6087901643f5871f2a2157c58c8-6d5cc76bf84cf7fb.elb.ca-central-1.amazonaws.com:9091"
+  # Per-site peer GridSite config for Local membership mode: each site's
+  # peer name, TLS server name (from the peer's grid identity cert DNS SAN),
+  # and signals NLB address so the operator knows where to poll.
+  local-cluster.grid-peer-site-name: "site-b"
+  local-cluster.grid-peer-server-name: "site-b.grid.internal"
+  local-cluster.grid-peer-signals-host: "a171a6087901643f5871f2a2157c58c8-6d5cc76bf84cf7fb.elb.ca-central-1.amazonaws.com:9091"
+  site-b.grid-peer-site-name: "grid"
+  site-b.grid-peer-server-name: "grid.grid.internal"
+  site-b.grid-peer-signals-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---
