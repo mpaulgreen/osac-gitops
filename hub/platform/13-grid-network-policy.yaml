@@ -53,6 +53,32 @@ spec:
                     name: grid-operator
                     namespace: redhat-ai-grid
 
+    # ── Grid Operator Site Name ──────────────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-operator-site-name
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: grid-operator
+                  namespace: redhat-ai-grid
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: operator
+                          env:
+                            - name: GRID_SITE_NAME
+                              value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-site-name" .ManagedClusterName) hub}}'
+
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
@@ -76,6 +102,10 @@ spec:
                       name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
                       signerEndpoint:
                         url: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-enrollment-host" .ManagedClusterName) hub}}'
+                        caBundleRef:
+                          kind: Secret
+                          name: grid-enrollment-ca
+                          key: ca.crt
                       inviteSecretRef:
                         name: grid-enrollment-invite
                         key: token
@@ -106,6 +136,32 @@ spec:
                 type: Opaque
                 stringData:
                   token: '{{hub $token hub}}'
+            {{hub- end hub}}
+
+    # ── Enrollment CA bundle (spoke sites) ────────────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-ca
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates-raw: |
+            {{hub- $caCert := fromSecret "osac-platform" "hub-service-ca-mirror" "ca.crt" hub}}
+            {{hub- if and (ne .ManagedClusterName "local-cluster") (ne $caCert "") hub}}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-enrollment-ca
+                  namespace: redhat-ai-grid
+                  labels:
+                    grid.praxis.fast/signer-bundle: "true"
+                type: Opaque
+                data:
+                  ca.crt: '{{hub $caCert | base64enc hub}}'
             {{hub- end hub}}
 
     # ── GridNetwork CR ────────────────────────────────────────────────
