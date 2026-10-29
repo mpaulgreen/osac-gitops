@@ -18,6 +18,49 @@ spec:
   remediationAction: enforce
   disabled: false
   policy-templates:
+    # ── Hub-template RBAC for openshift-logging ───────────────────────
+    # The osac-hub-templating SA (used by Policy 14) needs to lookup the
+    # LokiStack gateway Route in openshift-logging for hub-template
+    # expansion.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-logging-hub-template-rbac
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: osac-hub-templating
+                  namespace: openshift-logging
+                rules:
+                  - apiGroups: [""]
+                    resources: ["secrets"]
+                    verbs: ["get", "list", "watch"]
+                  - apiGroups: ["route.openshift.io"]
+                    resources: ["routes"]
+                    verbs: ["get", "list", "watch"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: osac-hub-templating
+                  namespace: openshift-logging
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: osac-hub-templating
+                subjects:
+                  - kind: ServiceAccount
+                    name: osac-hub-templating
+                    namespace: osac-platform
+
     # ── ObjectBucketClaim for Loki ────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
