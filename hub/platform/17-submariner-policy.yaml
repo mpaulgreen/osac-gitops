@@ -151,6 +151,8 @@ spec:
                   name: submariner
                   namespace: '{{hub . hub}}'
                 spec:
+                  credentialsSecret:
+                    name: submariner-aws-creds
                   loadBalancerEnable: true
                   gatewayConfig:
                     gateways: 2
