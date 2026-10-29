@@ -185,7 +185,7 @@ spec:
                               value: grid-swim-key
                             - name: ENROLLMENT_HUB_SEED_SECRET
                               value: grid-reserved-seeds
-                            - name: ENROLLMENT_INVITE_NAMESPACE
+                            - name: ENROLLMENT_INVITE_SECRET_NAMESPACE
                               value: grid-enrollment-invites
                           volumeMounts:
                             - name: db
