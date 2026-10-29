@@ -63,12 +63,12 @@ spec:
                   monitoring:
                     managementState: Removed
                   trustedCABundle:
-                    {{hub- if $caPEM }}
+                    {{hub- if $caPEM hub}}
                     customCABundle: |
                       {{hub $caPEM | base64dec | autoindent hub}}
-                    {{hub- else }}
+                    {{hub- else hub}}
                     customCABundle: ""
-                    {{hub- end }}
+                    {{hub- end hub}}
                     managementState: Managed
 
     # ── DataScienceCluster ──────────────────────────────────────────────
