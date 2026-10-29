@@ -78,6 +78,8 @@ spec:
                           env:
                             - name: GRID_SITE_NAME
                               value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-operator-site-name" .ManagedClusterName) hub}}'
+                            - name: GRID_SIGNALS_ADVERTISE_ADDR
+                              value: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-signals-ext-host" .ManagedClusterName) hub}}'
 
     # ── Grid Operator Config ─────────────────────────────────────────
     - objectDefinition:
@@ -246,6 +248,8 @@ spec:
                   gridId: '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.id" hub}}'
                   seeds:
                     - '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.hub-swim-host" hub}}:7946'
+                  swim:
+                    suspicionTimeout: 1h
                   signalTransport:
                     mode: poll
                   peerTrust:

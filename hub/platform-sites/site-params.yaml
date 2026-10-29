@@ -12,7 +12,10 @@ data:
   # Grid-wide identifier shared by all sites in this mesh
   grid.id: "fbdc9cea-9a03-40f9-81ca-8dcb882a45e3"
   # Hub SWIM endpoint — every spoke uses this as a SWIM seed
-  grid.hub-swim-host: "a891fd25bfad640929d138212755f238-49a418d32bf2a4a5.elb.ca-central-1.amazonaws.com"
+  grid.hub-swim-host: "aefa0082f3a644b57a41c42fb047a7d2-7c12b7fba014abab.elb.ca-central-1.amazonaws.com"
+  # Per-site external signals NLB for GRID_SIGNALS_ADVERTISE_ADDR
+  local-cluster.grid-signals-ext-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
+  site-b.grid-signals-ext-host: "a171a6087901643f5871f2a2157c58c8-6d5cc76bf84cf7fb.elb.ca-central-1.amazonaws.com:9091"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---
