@@ -32,6 +32,79 @@ spec:
                 metadata:
                   name: grid-enrollment-invites
 
+    # ── Enrollment Service RBAC ────────────────────────────────────────
+    # The enrollment binary watches SiteInvites (cluster-scoped), manages
+    # invite-token Secrets, and updates SiteInvite status.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-enrollment-rbac
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ServiceAccount
+                metadata:
+                  name: grid-enrollment
+                  namespace: redhat-ai-grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRole
+                metadata:
+                  name: grid-enrollment
+                rules:
+                  - apiGroups: ["grid.praxis.fast"]
+                    resources: ["siteinvites"]
+                    verbs: ["get", "list", "watch", "update", "patch"]
+                  - apiGroups: ["grid.praxis.fast"]
+                    resources: ["siteinvites/status"]
+                    verbs: ["get", "update", "patch"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRoleBinding
+                metadata:
+                  name: grid-enrollment
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: grid-enrollment
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-enrollment
+                    namespace: redhat-ai-grid
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: Role
+                metadata:
+                  name: grid-enrollment-secrets
+                  namespace: grid-enrollment-invites
+                rules:
+                  - apiGroups: [""]
+                    resources: ["secrets"]
+                    verbs: ["get", "list", "watch", "create", "update", "delete"]
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: grid-enrollment-secrets
+                  namespace: grid-enrollment-invites
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: Role
+                  name: grid-enrollment-secrets
+                subjects:
+                  - kind: ServiceAccount
+                    name: grid-enrollment
+                    namespace: redhat-ai-grid
+
     # ── Grid Enrollment Service ───────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
@@ -74,6 +147,7 @@ spec:
                       labels:
                         app: grid-enrollment
                     spec:
+                      serviceAccountName: grid-enrollment
                       containers:
                         - name: enrollment
                           image: registry.redhat.io/rhoai/odh-praxis-ai-grid-enrollment-rhel9@sha256:6dcbefe9f5496b014d4d588ec2bc3e295f6fbd3e1c5f2418145672476731b905
@@ -200,7 +274,6 @@ spec:
                 kind: SiteInvite
                 metadata:
                   name: site-b
-                  namespace: grid-enrollment-invites
                 spec:
                   siteName: site-b
                   lifetime: 168h
