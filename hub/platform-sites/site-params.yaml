@@ -28,9 +28,13 @@ data:
   local-cluster.grid-peer-site-name: "site-b"
   local-cluster.grid-peer-server-name: "site-b.grid.internal"
   local-cluster.grid-peer-signals-host: "a171a6087901643f5871f2a2157c58c8-6d5cc76bf84cf7fb.elb.ca-central-1.amazonaws.com:9091"
+  local-cluster.grid-peer-cluster-name: "peer-site-b"
+  local-cluster.grid-peer-provider-host: "site-b.grid.internal:443"
   site-b.grid-peer-site-name: "grid"
   site-b.grid-peer-server-name: "grid.grid.internal"
   site-b.grid-peer-signals-host: "a91874b58edfa47699d14100fd42a92e-30401381f8f162fe.elb.ca-central-1.amazonaws.com:9091"
+  site-b.grid-peer-cluster-name: "peer-grid"
+  site-b.grid-peer-provider-host: "grid.grid.internal:443"
   # Submariner: clusters to receive the addon
   submariner.clusters: "local-cluster,site-b"
   # --- local-cluster: site-a, the hub (hub), CPU only ---
@@ -45,7 +49,7 @@ data:
   local-cluster.grid-gateway-name: "grid-gateway"
   local-cluster.grid-namespace: "redhat-ai-grid"
   local-cluster.grid-peer-spiffe-ids: "spiffe://grid.internal/site/site-b"
-  local-cluster.grid-route-host: "local-cluster.grid.internal"
+  local-cluster.grid-route-host: "grid.grid.internal"
   local-cluster.grid-operator-site-name: "grid"
   local-cluster.grid-enrollment-host: "grid-enrollment.apps.hub.kni.syseng.devcluster.openshift.com"
   local-cluster.hardware-profiles: |

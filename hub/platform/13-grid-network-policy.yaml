@@ -331,10 +331,6 @@ spec:
                   name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-network-name" .ManagedClusterName) hub}}'
                 spec:
                   gridId: '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.id" hub}}'
-                  seeds:
-                    - '{{hub fromConfigMap "osac-platform" "osac-site-params" "grid.hub-swim-host" hub}}:7946'
-                  swim:
-                    suspicionTimeout: 1h
                   signalTransport:
                     mode: poll
                   peerTrust:
@@ -350,3 +346,11 @@ spec:
                     - name: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-gateway-name" .ManagedClusterName) hub}}'
                       namespace: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-namespace" .ManagedClusterName) hub}}'
                       siteName: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-site-name" .ManagedClusterName) hub}}'
+                      praxisConfig:
+                        generate: true
+                        clusterEndpoints:
+                          - cluster: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-cluster-name" .ManagedClusterName) hub}}'
+                            address: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-provider-host" .ManagedClusterName) hub}}'
+                            transport:
+                              mode: mutual_tls
+                              sni: '{{hub fromConfigMap "osac-platform" "osac-site-params" (printf "%s.grid-peer-server-name" .ManagedClusterName) hub}}'
