@@ -396,7 +396,7 @@ spec:
                 apiVersion: grid.praxis.fast/v1alpha1
                 kind: InferenceProvider
                 metadata:
-                  name: peer-site-b-opt-125m
+                  name: peer-site-b-granite-8b
                 spec:
                   gridNetworkRef: grid
                   providerKind: vllm
@@ -407,6 +407,6 @@ spec:
                     matchLabels:
                       grid.hexfusion.io/declared-peer: "true"
                   models:
-                    - name: facebook-opt-125m
+                    - name: granite-3.1-8b-instruct-fp8
                       capabilities:
                         - text_generation
