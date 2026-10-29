@@ -263,6 +263,8 @@ spec:
             # Must be in open-cluster-management-agent-addon: the platform
             # PrometheusAgent has no scrapeConfigNamespaceSelector, so it
             # only discovers ScrapeConfigs in its own namespace.
+            # scheme: HTTPS required — port 9091 is behind kube-rbac-proxy;
+            # auth and TLS CA come from the PrometheusAgent default endpoint.
             - complianceType: musthave
               objectDefinition:
                 apiVersion: monitoring.rhobs/v1alpha1
@@ -276,6 +278,7 @@ spec:
                   jobName: gpu-platform-metrics
                   metricsPath: /federate
                   scrapeInterval: 60s
+                  scheme: HTTPS
                   params:
                     match[]:
                       - '{__name__=~"DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_FB_USED|DCGM_FI_DEV_FB_FREE"}'
