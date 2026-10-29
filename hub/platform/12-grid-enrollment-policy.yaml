@@ -220,6 +220,28 @@ spec:
                   namespace: redhat-ai-grid
             {{- end }}
 
+    # ── Grid Operator Config ─────────────────────────────────────────
+    # Tells the grid operator where the enrollment/signer service lives
+    # so it can request and renew site certificates.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-operator-config
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: grid-operator-config
+                  namespace: redhat-ai-grid
+                data:
+                  site.signerEndpoint: 'https://{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
+
     # ── Declared peer: site-b ──────────────────────────────────────────
     # The hub declares known peers so the grid gateway can route to them
     # even without gossip. Add more GridSite + InferenceProvider pairs
