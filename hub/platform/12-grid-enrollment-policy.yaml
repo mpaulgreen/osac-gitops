@@ -32,6 +32,40 @@ spec:
                 metadata:
                   name: grid-enrollment-invites
 
+    # ── Grid Operator RBAC (missing ClusterRole) ─────────────────────
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-operator-rbac
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: ClusterRole
+                metadata:
+                  name: grid-operator-resources
+                  labels:
+                    app.kubernetes.io/instance: grid-operator
+                    app.kubernetes.io/name: grid-operator
+                    app.kubernetes.io/part-of: aigateway
+                rules:
+                  - apiGroups: [""]
+                    resources: ["configmaps"]
+                    verbs: ["get", "list", "watch"]
+                  - apiGroups: [""]
+                    resources: ["secrets"]
+                    verbs: ["get", "list", "watch", "create", "update", "patch"]
+                  - apiGroups: [""]
+                    resources: ["services", "serviceaccounts"]
+                    verbs: ["get", "list", "watch"]
+                  - apiGroups: ["apps"]
+                    resources: ["deployments"]
+                    verbs: ["get", "list", "watch", "create", "update", "patch"]
+
     # ── Grid Enrollment Service ───────────────────────────────────────
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
