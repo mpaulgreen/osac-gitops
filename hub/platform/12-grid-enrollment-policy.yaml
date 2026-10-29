@@ -210,7 +210,7 @@ spec:
                             - name: ENROLLMENT_CA_CERT
                               value: /etc/grid-ca/ca.crt
                             - name: ENROLLMENT_CA_KEY
-                              value: /etc/grid-ca/ca.key
+                              value: /etc/grid-ca/tls.key
                             - name: ENROLLMENT_TLS_CERT
                               value: /etc/enrollment-tls/tls.crt
                             - name: ENROLLMENT_TLS_KEY

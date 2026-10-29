@@ -1,0 +1,233 @@
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: osac-grid-pki
+  namespace: osac-platform
+  labels:
+    osac.io/platform: "true"
+  annotations:
+    policy.open-cluster-management.io/description: >-
+      Hub-only: bootstraps all grid PKI secrets via cert-manager and ESO.
+      Creates the grid CA, hub site-identity cert, enrollment TLS cert,
+      SWIM key, and empty reserved-seeds secret — eliminating manual
+      in-cluster secret creation during initial deployment.
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    # ── Grid CA (self-signed) ──────────────────────────────────────────
+    # cert-manager creates the grid-ca Secret with tls.crt, tls.key, and
+    # ca.crt keys. The enrollment service and gateways mount this secret
+    # directly.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-ca
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Issuer
+                metadata:
+                  name: grid-ca-selfsigned
+                  namespace: redhat-ai-grid
+                spec:
+                  selfSigned: {}
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: grid-ca
+                  namespace: redhat-ai-grid
+                spec:
+                  secretName: grid-ca
+                  isCA: true
+                  commonName: grid-ca
+                  duration: 87600h
+                  renewBefore: 8760h
+                  privateKey:
+                    algorithm: ECDSA
+                    size: 256
+                  issuerRef:
+                    name: grid-ca-selfsigned
+                    kind: Issuer
+
+    # ── CA Issuer (signs identity and enrollment certs) ────────────────
+    # This Issuer references the grid-ca secret created above, enabling
+    # cert-manager to sign downstream certificates with the grid CA.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-ca-issuer
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Issuer
+                metadata:
+                  name: grid-ca-issuer
+                  namespace: redhat-ai-grid
+                spec:
+                  ca:
+                    secretName: grid-ca
+
+    # ── Hub Site Identity cert (signed by grid CA) ─────────────────────
+    # The hub's TLS identity cert with SPIFFE URI matching the grid
+    # site name. Consumer and provider gateways mount this secret for
+    # mTLS authentication with peer sites.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-hub-identity
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: grid-site-identity
+                  namespace: redhat-ai-grid
+                spec:
+                  secretName: grid-site-identity
+                  commonName: grid
+                  duration: 8760h
+                  renewBefore: 2160h
+                  privateKey:
+                    algorithm: ECDSA
+                    size: 256
+                  subject:
+                    organizations:
+                      - grid
+                  dnsNames:
+                    - grid.grid.internal
+                  uris:
+                    - spiffe://grid.internal/site/grid
+                  issuerRef:
+                    name: grid-ca-issuer
+                    kind: Issuer
+
+    # ── Enrollment TLS cert (signed by grid CA) ────────────────────────
+    # The enrollment service HTTPS serving cert. SANs include the
+    # in-cluster service DNS and the external Route hostname so
+    # passthrough TLS works end-to-end.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-enrollment-tls
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: cert-manager.io/v1
+                kind: Certificate
+                metadata:
+                  name: grid-enrollment-tls
+                  namespace: redhat-ai-grid
+                spec:
+                  secretName: grid-enrollment-tls
+                  commonName: grid-enrollment
+                  duration: 8760h
+                  renewBefore: 2160h
+                  privateKey:
+                    algorithm: ECDSA
+                    size: 256
+                  dnsNames:
+                    - grid-enrollment.redhat-ai-grid.svc
+                    - grid-enrollment.redhat-ai-grid.svc.cluster.local
+                    - '{{hub fromConfigMap "osac-platform" "osac-site-params" "local-cluster.grid-enrollment-host" hub}}'
+                  issuerRef:
+                    name: grid-ca-issuer
+                    kind: Issuer
+
+    # ── SWIM Key (random via ESO Password generator) ───────────────────
+    # The SWIM protocol key is a random symmetric secret shared across
+    # all sites. ESO generates it once; the existing mirror (Policy 00)
+    # and distribution (Policy 18) chain propagates it to spokes.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-swim-key
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: generators.external-secrets.io/v1alpha1
+                kind: Password
+                metadata:
+                  name: grid-swim-key-gen
+                  namespace: redhat-ai-grid
+                spec:
+                  length: 32
+                  digits: 8
+                  symbols: 0
+                  noUpper: false
+                  allowRepeat: true
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: external-secrets.io/v1
+                kind: ExternalSecret
+                metadata:
+                  name: grid-swim-key
+                  namespace: redhat-ai-grid
+                spec:
+                  refreshPolicy: CreatedOnce
+                  refreshInterval: 0s
+                  target:
+                    name: grid-swim-key
+                    creationPolicy: Owner
+                    deletionPolicy: Retain
+                    template:
+                      type: Opaque
+                      engineVersion: v2
+                      mergePolicy: Merge
+                  dataFrom:
+                    - sourceRef:
+                        generatorRef:
+                          apiVersion: generators.external-secrets.io/v1alpha1
+                          kind: Password
+                          name: grid-swim-key-gen
+                      rewrite:
+                        - regexp:
+                            source: ^password$
+                            target: key
+
+    # ── Reserved Seeds (empty) ─────────────────────────────────────────
+    # The enrollment service references this secret for reserved seed
+    # values. An empty secret is sufficient for initial bootstrap.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: osac-grid-pki-reserved-seeds
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Secret
+                metadata:
+                  name: grid-reserved-seeds
+                  namespace: redhat-ai-grid
+                type: Opaque
