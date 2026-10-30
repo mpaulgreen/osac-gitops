@@ -546,44 +546,49 @@ oc exec "$QUERIER" -c loki-querier -n openshift-logging --context=$HUB_CTX -- \
 
 ---
 
-## Test Results — 2026-10-30
+## Test Results — 2026-10-30 (Run 2)
 
 Tested against hub `api-hub.kni-syseng.devcluster.openshift.com` and
 spoke `api-osacmaas.kni-syseng.devcluster.openshift.com`, RHOAI 3.6.
+
+Traffic generated with `tests/load-test-spoke.sh` (50 requests, concurrency
+3, enterprise sub on spoke granite) + 8 hub requests (5 novatech-free + 3
+novatech-enterprise on facebook-opt-125m).
 
 ### Part A — Infrastructure Readiness
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
 | 1 | ACM Policy Compliance | **PASS** | All 4 logging policies Compliant |
-| 2 | Loki Operator | **PASS** | Subscription, CSV, operator pod all healthy |
+| 2 | Loki Operator | **PASS** | Subscription AtLatestKnown, CSV Succeeded, operator pod Running |
 | 3 | OBC & S3 | **PASS** | OBC Bound, all 5 keys present in secret |
-| 4 | LokiStack | **WARN** | `ingester-2` Pending (resource constraint); other pods Ready |
-| 5 | Gateway Route | **PASS** | Route admitted, curl returns 401 (auth required) |
-| 6 | Writer RBAC | **PASS** | SA, token, ClusterRole, CRB all present |
-| 7 | Hub-config Distribution | **PASS** | Secret exists on both hub and spoke |
-| 8 | OTel Collector | **PASS** | Collector pod running in `redhat-ods-applications` |
-| 9 | ExternalName Bridge | **PASS** | Service type ExternalName, correct target |
-| 10 | EnvoyFilter | **PASS** | `maas-model-access-logs` present in `openshift-ingress` |
+| 4 | LokiStack | **WARN** | `ingester-2` Pending (resource constraint); all other pods Running |
+| 5 | Gateway Route | **PASS** | Route admitted, `tls=reencrypt`, curl returns 302 (OIDC redirect) |
+| 6 | Writer RBAC | **PASS** | SA, token, ClusterRole (`create get`), CRB all present |
+| 7 | Hub-config Distribution | **PASS** | Secret with `gateway_url` + `token` on both hub and spoke |
+| 8 | OTel Collector | **PASS** | Collector pod Running on both clusters |
+| 9 | ExternalName Bridge | **PASS** | ExternalName → `usage-logs-collector.redhat-ods-applications.svc.cluster.local` on both |
+| 10 | EnvoyFilter | **PASS** | `maas-model-access-logs` present in `openshift-ingress` on both |
 
 ### Part B — Dashboard Data Validation
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 11 | Traffic Generation | **PASS** | Hub: 200 OK (facebook-opt-125m, novatech-free). Spoke: 200 OK (granite-3.1-8b-instruct-fp8, novatech-free) |
-| 12 | Collector Health | **PASS** | 0 export errors. Metrics: 2 received, 2 sent, 0 failed |
-| 13 | Basic Log Presence | **PASS** | 3 streams, 5 entries |
-| 14 | Per-Model Usage | **PASS** | facebook-opt-125m: 1 entry. granite: 4 entries (401/403 errors) |
-| 15 | Per-Tenant Usage | **PASS** | subscription=facebook-cross-cluster-sub |
-| 16 | Token Consumption | **PASS** | tokens_total=16, prompt=6, completion=10 |
-| 17 | Response Classification | **PASS** | hit: 1 entry, error: 4 entries |
-| 18 | Multi-cluster Aggregation | **PASS** | Hub (upstream_host=10.129.2.189:8000) + Spoke (upstream_host=10.130.3.74:8000) both present |
-| 19 | Dashboard Panel Queries | **PASS** | All 3 panel queries return data |
+| 11 | Traffic Generation | **PASS** | Spoke load test: 49/50 OK (1 HTTP 500, single-GPU overload). Hub: 8/8 OK (5 free + 3 enterprise) |
+| 12 | Collector Health | **PASS** | 0 export errors on hub and spoke |
+| 13 | Basic Log Presence | **PASS** | 7 streams, 10+ entries (both models, multiple hosts) |
+| 14 | Per-Model Usage | **PASS** | facebook-opt-125m: 8 streams/10 entries. granite: 1 stream/10 entries |
+| 15 | Per-Tenant Usage | **PASS** | `novatech-enterprise-subscription` populated (spoke load test). Hub `subscription` shows `-` (known issue) |
+| 16 | Token Consumption | **PASS** | granite: total=39, prompt=9, completion=30. facebook-opt-125m: total=16-28 |
+| 17 | Response Classification | **PASS** | hit: 7 streams/10 entries. error: 1 stream/10 entries |
+| 18 | Multi-cluster Aggregation | **PASS** | 5 distinct upstream_hosts (3 hub replicas + 1 spoke + `-`), both models present |
+| 19 | Dashboard Panel Queries | **PASS** | 19a: 249 total requests by model. 19b: 3 subscriptions (enterprise=187, free=18, cross-cluster=1). 19c: hit=209, error=31, rate_limit=9 |
 
 ### Summary
 
-- **17 PASS**, **1 WARN**, **0 PARTIAL**, **0 FAIL**
+- **18 PASS**, **1 WARN**, **0 FAIL**
 - Pipeline is end-to-end functional: EnvoyFilter ALS → OTel Collector → LokiStack gateway → Loki storage
 - Both hub and spoke inference logs arrive at the hub LokiStack
+- Dashboard panel queries return rich aggregation data across models, subscriptions, and response types
 - WARN (Test 4): `ingester-2` Pending is a resource constraint, not a pipeline defect
-- Spoke `subscription` field shows `-` in access logs even for successful 200 requests — the EnvoyFilter ALS may not be capturing the subscription response header on spoke
+- Hub `subscription` field shows `-` for directly-authenticated requests (JWT without API key) — the EnvoyFilter ALS captures subscription only when requests route through the API key path
