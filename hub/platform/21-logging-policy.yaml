@@ -334,7 +334,7 @@ spec:
                   - apiGroups: ["loki.grafana.com"]
                     resources: ["application"]
                     resourceNames: ["logs"]
-                    verbs: ["create"]
+                    verbs: ["create", "get"]
             - complianceType: musthave
               objectDefinition:
                 apiVersion: rbac.authorization.k8s.io/v1
