@@ -432,6 +432,12 @@ spec:
                           - key: service.name
                             value: models-as-a-service
                             action: upsert
+                          - key: log_type
+                            value: application
+                            action: upsert
+                          - key: openshift.log.source
+                            value: container
+                            action: upsert
                       groupbyattrs:
                         keys:
                           - subscription
