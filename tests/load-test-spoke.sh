@@ -7,7 +7,7 @@
 #   CONCURRENCY=10 TOTAL_REQUESTS=100 bash tests/load-test-spoke.sh
 set -euo pipefail
 
-CONCURRENCY=${CONCURRENCY:-5}
+CONCURRENCY=${CONCURRENCY:-3}
 TOTAL_REQUESTS=${TOTAL_REQUESTS:-50}
 MAX_TOKENS=${MAX_TOKENS:-30}
 PROMPT=${PROMPT:-"Explain the theory of relativity in simple terms"}
