@@ -376,7 +376,7 @@ spec:
                   name: usage-log-hub-config
                   namespace: redhat-ods-applications
                 stringData:
-                  gateway_url: '{{hub printf "https://%s/api/logs/v1/application" (index $route.status.ingress 0).host hub}}'
+                  gateway_url: '{{hub printf "https://%s/api/logs/v1/application/otlp/v1/push" (index $route.status.ingress 0).host hub}}'
                   token: '{{hub $token | base64dec hub}}'
             {{hub- end hub}}
 
@@ -442,7 +442,7 @@ spec:
                         timeout: 10s
                     exporters:
                       otlphttp/hub:
-                        endpoint: ${LOKI_ENDPOINT}
+                        logs_endpoint: ${LOKI_ENDPOINT}
                         headers:
                           Authorization: "Bearer ${LOKI_AUTH_TOKEN}"
                         tls:
