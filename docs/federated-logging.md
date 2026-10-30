@@ -27,36 +27,24 @@ mirroring how MCO federates metrics to the hub Thanos.
 ## Architecture
 
 ```mermaid
-flowchart LR
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '16px'}}}%%
+flowchart TB
     subgraph spoke["Spoke cluster"]
-        direction TB
-        S_GW["Istio Gateway<br/><i>openshift-ingress</i>"]
-        S_EF["EnvoyFilter<br/><b>maas-model-access-logs</b><br/><i>(MaaS controller)</i>"]
-        S_EXT["ExternalName Svc<br/><i>redhat-ods-monitoring</i>"]
-        S_OTEL["OTel Collector<br/><i>redhat-ods-applications</i>"]
-        S_GW --- S_EF
-        S_EF -->|"gRPC ALS<br/>:4317"| S_EXT
-        S_EXT -->|redirect| S_OTEL
+        S_GW[Istio Gateway] --- S_EF[EnvoyFilter ALS]
+        S_EF -->|"gRPC :4317"| S_EXT[ExternalName svc]
+        S_EXT -->|redirect| S_OTEL[OTel Collector]
     end
 
     subgraph hub["Hub cluster"]
-        direction TB
-        H_GW["Istio Gateway<br/><i>openshift-ingress</i>"]
-        H_EF["EnvoyFilter<br/><b>maas-model-access-logs</b><br/><i>(MaaS controller)</i>"]
-        H_EXT["ExternalName Svc<br/><i>redhat-ods-monitoring</i>"]
-        H_OTEL["OTel Collector<br/><i>redhat-ods-applications</i>"]
-        H_ROUTE["Route<br/><b>usage-logs-gateway</b><br/><i>openshift-logging</i>"]
-        H_LOKI["LokiStack<br/><b>usage-logs</b><br/><i>openshift-logging</i>"]
-        H_S3["ODF NooBaa<br/>S3 bucket"]
-        H_GW --- H_EF
-        H_EF -->|"gRPC ALS<br/>:4317"| H_EXT
-        H_EXT -->|redirect| H_OTEL
-        H_OTEL -->|"OTLP HTTP<br/>/otlp/v1/logs"| H_LOKI
-        H_ROUTE -.->|"TLS reencrypt"| H_LOKI
-        H_LOKI --> H_S3
+        H_GW[Istio Gateway] --- H_EF[EnvoyFilter ALS]
+        H_EF -->|"gRPC :4317"| H_EXT[ExternalName svc]
+        H_EXT -->|redirect| H_OTEL[OTel Collector]
+        H_OTEL -->|"OTLP HTTP"| H_LOKI[LokiStack]
+        H_ROUTE[Gateway Route] -.->|"TLS reencrypt"| H_LOKI
+        H_LOKI --> H_S3[S3 storage]
     end
 
-    S_OTEL ==>|"OTLP HTTP<br/>Bearer token<br/>via Route"| H_ROUTE
+    S_OTEL ==>|"OTLP HTTP + Bearer token"| H_ROUTE
 
     style spoke fill:#e8f4f8,stroke:#2980b9
     style hub fill:#fef3e2,stroke:#e67e22
@@ -240,18 +228,12 @@ only promotes attributes listed in `limits_config.otlp_config.resource_attribute
 The spoke → hub authentication chain:
 
 ```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '16px'}}}%%
 flowchart LR
-    SA["ServiceAccount<br/><b>usage-log-writer</b><br/><i>openshift-logging</i>"]
-    TOK["SA token Secret<br/><b>usage-log-writer-token</b><br/><i>openshift-logging</i>"]
-    CR["ClusterRole<br/><b>logging-collector-logs-writer</b><br/>create+get on<br/>loki.grafana.com/application/logs"]
-    CRB["ClusterRoleBinding<br/><b>usage-log-writer</b>"]
-    MIRROR["Secret mirror<br/><b>usage-log-writer-token-mirror</b><br/><i>osac-platform</i>"]
-    HUBCFG["Hub template<br/>→ usage-log-hub-config<br/><i>redhat-ods-applications</i><br/>(all clusters)"]
-
-    SA --> TOK
-    SA --> CRB --> CR
-    TOK --> MIRROR
-    MIRROR --> HUBCFG
+    SA[SA usage-log-writer] --> TOK[Token secret]
+    SA --> CRB[ClusterRoleBinding] --> CR[ClusterRole create+get]
+    TOK --> MIRROR[Token mirror]
+    MIRROR --> HUBCFG[hub-config secret]
 ```
 
 All RBAC resources are on the hub, managed by `21-logging-policy.yaml`.
@@ -325,7 +307,7 @@ sum by (subscription) (count_over_time(
 Per-user filtering (for tenancy proxy):
 
 ```logql
-{log_type="application"} | user_id="novatech-admin"
+{log_type="application"} | user_id="novatech-free"
 ```
 
 Prompt vs completion token split:
@@ -369,14 +351,14 @@ oc logs -l app.kubernetes.io/name=usage-logs-collector \
 ### End-to-end test (inference → query)
 
 ```bash
-# 1. Get JWT from hub Keycloak
+# 1. Get JWT from hub Keycloak (use novatech-enterprise — has a subscription)
 TOKEN=$(curl -sk \
   "https://keycloak-maas-db.apps.hub.kni.syseng.devcluster.openshift.com/realms/saas/protocol/openid-connect/token" \
   -d grant_type=password -d client_id=tenant-demo \
-  -d username=novatech-admin -d password=password123 \
+  -d username=novatech-enterprise -d password=password123 \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# 2. Mint API key
+# 2. Mint API key (subscription is captured only via the API key path)
 KEY=$(curl -sk -X POST "https://maas.apps.hub.kni.syseng.devcluster.openshift.com/v1/api-keys" \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "{\"name\":\"test-$(date +%s)\"}" \
@@ -391,14 +373,18 @@ curl -sk -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
 # 4. Wait for OTel batch flush
 sleep 15
 
-# 5. Query LokiStack (via query-frontend pod, or with kubeadmin token via Route)
-QF_POD=$(oc get pod \
-  -l app.kubernetes.io/component=query-frontend,app.kubernetes.io/instance=usage-logs \
+# 5. Query LokiStack via querier pod (mTLS — query-frontend requires mutual TLS)
+Q_POD=$(oc get pod \
+  -l app.kubernetes.io/component=querier,app.kubernetes.io/instance=usage-logs \
   -n openshift-logging --context=$HUB_CTX -o jsonpath='{.items[0].metadata.name}')
 
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
-  --data-urlencode 'query={log_type="application"}' \
+oc exec "$Q_POD" -n openshift-logging --context=$HUB_CTX -- \
+  curl -s --cacert /var/run/ca/service-ca.crt \
+  --cert /var/run/tls/http/server/tls.crt \
+  --key /var/run/tls/http/server/tls.key \
+  -H 'X-Scope-OrgID: application' \
+  'https://usage-logs-query-frontend-http.openshift-logging.svc:3100/loki/api/v1/query' \
+  --data-urlencode 'query={log_type="application"} | service_name = "models-as-a-service"' \
   --data-urlencode 'limit=5' | python3 -m json.tool
 ```
 
