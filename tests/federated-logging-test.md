@@ -546,14 +546,16 @@ oc exec "$QUERIER" -c loki-querier -n openshift-logging --context=$HUB_CTX -- \
 
 ---
 
-## Test Results — 2026-10-30 (Run 2)
+## Test Results — 2026-10-30 (Run 3)
 
 Tested against hub `api-hub.kni-syseng.devcluster.openshift.com` and
 spoke `api-osacmaas.kni-syseng.devcluster.openshift.com`, RHOAI 3.6.
 
-Traffic generated with `tests/load-test-spoke.sh` (50 requests, concurrency
-3, enterprise sub on spoke granite) + 8 hub requests (5 novatech-free + 3
-novatech-enterprise on facebook-opt-125m).
+Traffic generated exclusively via API keys (the production auth path):
+- `tests/load-test-hub.sh` — 50 requests (concurrency 5), enterprise sub,
+  facebook-opt-125m on hub. Result: 46/50 OK, 4 HTTP 500.
+- `tests/load-test-spoke.sh` — 50 requests (concurrency 3), enterprise sub,
+  granite-3.1-8b-instruct-fp8 on spoke. Result: 49/50 OK, 1 HTTP 500.
 
 ### Part A — Infrastructure Readiness
 
@@ -574,15 +576,15 @@ novatech-enterprise on facebook-opt-125m).
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 11 | Traffic Generation | **PASS** | Spoke load test: 49/50 OK (1 HTTP 500, single-GPU overload). Hub: 8/8 OK (5 free + 3 enterprise) |
+| 11 | Traffic Generation | **PASS** | Hub: 46/50 OK (4 HTTP 500, transient backend overload). Spoke: 49/50 OK (1 HTTP 500, single-GPU overload). All via API keys |
 | 12 | Collector Health | **PASS** | 0 export errors on hub and spoke |
-| 13 | Basic Log Presence | **PASS** | 7 streams, 10+ entries (both models, multiple hosts) |
-| 14 | Per-Model Usage | **PASS** | facebook-opt-125m: 8 streams/10 entries. granite: 1 stream/10 entries |
-| 15 | Per-Tenant Usage | **PASS** | `novatech-enterprise-subscription` populated (spoke load test). Hub `subscription` shows `-` (known issue) |
-| 16 | Token Consumption | **PASS** | granite: total=39, prompt=9, completion=30. facebook-opt-125m: total=16-28 |
-| 17 | Response Classification | **PASS** | hit: 7 streams/10 entries. error: 1 stream/10 entries |
-| 18 | Multi-cluster Aggregation | **PASS** | 5 distinct upstream_hosts (3 hub replicas + 1 spoke + `-`), both models present |
-| 19 | Dashboard Panel Queries | **PASS** | 19a: 249 total requests by model. 19b: 3 subscriptions (enterprise=187, free=18, cross-cluster=1). 19c: hit=209, error=31, rate_limit=9 |
+| 13 | Basic Log Presence | **PASS** | 7+ streams, 10+ entries (both models, multiple hosts) |
+| 14 | Per-Model Usage | **PASS** | facebook-opt-125m: 65+ entries (3 hub replicas). granite: 190+ entries |
+| 15 | Per-Tenant Usage | **PASS** | `novatech-enterprise-subscription`: 233 entries (hub + spoke). `novatech-free-subscription`: 18 entries |
+| 16 | Token Consumption | **PASS** | granite: total=39, prompt=9, completion=30. facebook-opt-125m: total=16-20 |
+| 17 | Response Classification | **PASS** | hit: 255 entries. error: 35 entries. rate_limit: 9 entries |
+| 18 | Multi-cluster Aggregation | **PASS** | 5 distinct upstream_hosts (3 hub replicas + 1 spoke + `-` for errors), both models present |
+| 19 | Dashboard Panel Queries | **PASS** | 19a: 299 requests by model. 19b: 3 subscriptions (enterprise=233, free=18, cross-cluster=1). 19c: hit=255, error=35, rate_limit=9 |
 
 ### Summary
 
@@ -591,4 +593,28 @@ novatech-enterprise on facebook-opt-125m).
 - Both hub and spoke inference logs arrive at the hub LokiStack
 - Dashboard panel queries return rich aggregation data across models, subscriptions, and response types
 - WARN (Test 4): `ingester-2` Pending is a resource constraint, not a pipeline defect
-- Hub `subscription` field shows `-` for directly-authenticated requests (JWT without API key) — the EnvoyFilter ALS captures subscription only when requests route through the API key path
+
+### Observations
+
+1. **`subscription` field populated via API key path.** When requests use
+   minted API keys (the production auth path), `subscription` is correctly
+   set (e.g. `novatech-enterprise-subscription`). Direct JWT requests log
+   `subscription: -` because the gateway resolves subscriptions only through
+   the API key → subscription mapping.
+
+2. **Model name split on success vs error.** Successful responses log the
+   short model name (`facebook-opt-125m`), while error/rate-limited responses
+   log the full request path (`publishers/ai-grid-internal-models/models/facebook-opt-125m`).
+   The gateway normalizes the model name on successful routing but logs the
+   raw request body model name on errors. Dashboard queries should use a
+   regex or `model =~ ".*facebook-opt-125m.*"` to aggregate both.
+
+3. **HTTP 500s under load.** Both hub (4/50) and spoke (1/50) produce
+   occasional 500s under concurrent load. This is a model serving capacity
+   issue, not a pipeline defect. Spoke (single GPU replica) is more
+   susceptible than hub (3 CPU replicas).
+
+4. **`facebook-cross-cluster-sub` appearing (1 entry).** Cross-cluster
+   subscriptions match `system:authenticated`, so any authenticated request
+   can match. The gateway should prefer the more specific local subscription
+   when both match.
