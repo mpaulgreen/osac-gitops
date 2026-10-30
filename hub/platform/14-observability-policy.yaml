@@ -488,74 +488,35 @@ spec:
                         - port: 4317
                           protocol: TCP
 
-    # ── EnvoyFilter for usage-log access logging ─────────────────────
-    # Configures the MaaS gateway Envoy to emit structured access logs
-    # via gRPC ALS to the usage-log OTel Collector. Deploys in
-    # openshift-ingress where the gateway runs.
+    # ── ExternalName Service redirect for MaaS usage-log EnvoyFilter ─
+    # The MaaS controller deploys maas-model-access-logs EnvoyFilter
+    # which extracts token counts from response bodies (JSON + SSE),
+    # user identity, model, subscription, and response classification
+    # using header_to_metadata, json_to_metadata, Lua, and CEL filters.
+    # It targets data-science-usage-logs-collector.redhat-ods-monitoring
+    # but that service does not exist when DSCI monitoring is Removed.
+    # This ExternalName Service bridges the gap by redirecting to our
+    # OTel Collector without modifying the controller-managed EnvoyFilter.
     - objectDefinition:
         apiVersion: policy.open-cluster-management.io/v1
         kind: ConfigurationPolicy
         metadata:
-          name: osac-usage-log-envoyfilter
+          name: osac-usage-log-service-redirect
         spec:
           remediationAction: enforce
           severity: low
-          object-templates-raw: |
-            {{- if (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "envoyfilters.networking.istio.io") }}
+          object-templates:
             - complianceType: musthave
               objectDefinition:
-                apiVersion: networking.istio.io/v1alpha3
-                kind: EnvoyFilter
+                apiVersion: v1
+                kind: Service
                 metadata:
-                  name: maas-usage-log-als
-                  namespace: openshift-ingress
+                  name: data-science-usage-logs-collector
+                  namespace: redhat-ods-monitoring
                 spec:
-                  workloadSelector:
-                    labels:
-                      gateway.networking.k8s.io/gateway-name: maas-default-gateway
-                  configPatches:
-                    - applyTo: NETWORK_FILTER
-                      match:
-                        context: GATEWAY
-                        listener:
-                          filterChain:
-                            filter:
-                              name: envoy.filters.network.http_connection_manager
-                      patch:
-                        operation: MERGE
-                        value:
-                          typed_config:
-                            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-                            access_log:
-                              - name: envoy.access_loggers.open_telemetry
-                                typed_config:
-                                  "@type": type.googleapis.com/envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
-                                  common_config:
-                                    log_name: maas-usage
-                                    transport_api_version: V3
-                                    grpc_service:
-                                      envoy_grpc:
-                                        cluster_name: outbound|4317||usage-logs-collector.redhat-ods-applications.svc.cluster.local
-                                  body:
-                                    string_value: "%REQ(:METHOD)% %REQ(:PATH)% %PROTOCOL% %RESPONSE_CODE%"
-                                  attributes:
-                                    values:
-                                      - key: service_name
-                                        value:
-                                          string_value: models-as-a-service
-                                      - key: model
-                                        value:
-                                          string_value: "%REQ(x-model-id)%"
-                                      - key: subscription
-                                        value:
-                                          string_value: "%REQ(x-maas-subscription)%"
-                                      - key: user_id
-                                        value:
-                                          string_value: "%REQ(x-maas-user-id)%"
-                                      - key: organization_id
-                                        value:
-                                          string_value: "%REQ(x-maas-organization-id)%"
-                                      - key: response_type
-                                        value:
-                                          string_value: "%RESPONSE_CODE_DETAILS%"
-            {{- end }}
+                  type: ExternalName
+                  externalName: usage-logs-collector.redhat-ods-applications.svc.cluster.local
+                  ports:
+                    - port: 4317
+                      protocol: TCP
+                      targetPort: 4317
