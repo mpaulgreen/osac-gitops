@@ -64,13 +64,14 @@ echo "Hub API key: ${HUB_KEY:0:15}..."
 ### Test 3: Enterprise Inference (expect 200)
 
 ```bash
-curl -sk --max-time 30 -w "\nHTTP: %{http_code}\n" \
+HTTP=$(curl -sk --max-time 30 -o /tmp/hub_resp.json -w "%{http_code}" \
   -H "Authorization: Bearer $HUB_KEY" \
   -H "Content-Type: application/json" \
   "https://maas.${HUB_DOMAIN}/v1/completions" \
   -d '{"model":"publishers/ai-grid-internal-models/models/facebook-opt-125m",
-       "prompt":"The capital of France is","max_tokens":10}' \
-  | python3 -m json.tool
+       "prompt":"The capital of France is","max_tokens":10}')
+echo "HTTP: $HTTP"
+python3 -m json.tool /tmp/hub_resp.json
 ```
 
 **Pass**: HTTP 200 with completion text and `usage.total_tokens > 0`.
@@ -94,13 +95,14 @@ FREE_KEY=$(curl -sk -X POST "https://maas.${HUB_DOMAIN}/v1/api-keys" \
 
 for i in 1 2 3; do
   echo "--- Request $i ---"
-  curl -sk --max-time 30 -w "\nHTTP: %{http_code}\n" \
+  HTTP=$(curl -sk --max-time 30 -o /tmp/hub_free_$i.json -w "%{http_code}" \
     -H "Authorization: Bearer $FREE_KEY" \
     -H "Content-Type: application/json" \
     "https://maas.${HUB_DOMAIN}/v1/completions" \
     -d '{"model":"publishers/ai-grid-internal-models/models/facebook-opt-125m",
-         "prompt":"Write a long story about a brave knight who traveled across many lands","max_tokens":50}'
-  echo ""
+         "prompt":"Write a long story about a brave knight who traveled across many lands","max_tokens":50}')
+  echo "HTTP: $HTTP"
+  cat /tmp/hub_free_$i.json; echo ""
 done
 ```
 
@@ -140,13 +142,14 @@ echo "Spoke API key: ${SPOKE_KEY:0:15}..."
 Granite runs on GPU and may take longer to respond than facebook-opt-125m.
 
 ```bash
-curl -sk --max-time 120 -w "\nHTTP: %{http_code}\n" \
+HTTP=$(curl -sk --max-time 120 -o /tmp/spoke_resp.json -w "%{http_code}" \
   -H "Authorization: Bearer $SPOKE_KEY" \
   -H "Content-Type: application/json" \
   "https://maas.${SPOKE_DOMAIN}/v1/completions" \
   -d '{"model":"publishers/ai-grid-internal-models/models/granite-3.1-8b-instruct-fp8",
-       "prompt":"The capital of France is","max_tokens":10}' \
-  | python3 -m json.tool
+       "prompt":"The capital of France is","max_tokens":10}')
+echo "HTTP: $HTTP"
+python3 -m json.tool /tmp/spoke_resp.json
 ```
 
 **Pass**: HTTP 200 with completion text and `usage.total_tokens > 0`.
@@ -166,13 +169,14 @@ FREE_KEY=$(curl -sk -X POST "https://maas.${SPOKE_DOMAIN}/v1/api-keys" \
 
 for i in 1 2 3; do
   echo "--- Request $i ---"
-  curl -sk --max-time 120 -w "\nHTTP: %{http_code}\n" \
+  HTTP=$(curl -sk --max-time 120 -o /tmp/spoke_free_$i.json -w "%{http_code}" \
     -H "Authorization: Bearer $FREE_KEY" \
     -H "Content-Type: application/json" \
     "https://maas.${SPOKE_DOMAIN}/v1/completions" \
     -d '{"model":"publishers/ai-grid-internal-models/models/granite-3.1-8b-instruct-fp8",
-         "prompt":"Write a long story about a brave knight who traveled across many lands","max_tokens":50}'
-  echo ""
+         "prompt":"Write a long story about a brave knight who traveled across many lands","max_tokens":50}')
+  echo "HTTP: $HTTP"
+  cat /tmp/spoke_free_$i.json; echo ""
 done
 ```
 
