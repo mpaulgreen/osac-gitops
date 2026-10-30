@@ -376,7 +376,7 @@ spec:
                   name: usage-log-hub-config
                   namespace: redhat-ods-applications
                 stringData:
-                  gateway_url: '{{hub printf "https://%s/api/logs/v1/application/otlp/v1/push" (index $route.status.ingress 0).host hub}}'
+                  gateway_url: '{{hub printf "https://%s/api/logs/v1/application/otlp/v1/logs" (index $route.status.ingress 0).host hub}}'
                   token: '{{hub $token | base64dec hub}}'
             {{hub- end hub}}
 
