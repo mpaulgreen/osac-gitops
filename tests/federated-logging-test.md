@@ -36,8 +36,8 @@ oc get policy -n osac-platform --context=$HUB_CTX \
 ### Test 2: Loki Operator
 
 ```bash
-# Subscription health
-oc get subscription loki-operator -n openshift-logging --context=$HUB_CTX \
+# Subscription health (use OLM API group, not ACM)
+oc get subscription.operators.coreos.com loki-operator -n openshift-logging --context=$HUB_CTX \
   -o jsonpath='{.status.state}{"\n"}'
 
 # CSV phase
@@ -59,12 +59,12 @@ oc get pods -n openshift-logging --context=$HUB_CTX \
 oc get objectbucketclaim loki-usage-logs -n openshift-logging --context=$HUB_CTX \
   -o jsonpath='{.status.phase}{"\n"}'
 
-# S3 Secret has all required keys
+# S3 Secret key names
 oc get secret logging-loki-s3 -n openshift-logging --context=$HUB_CTX \
-  -o jsonpath='{range .data}{@}{"\n"}{end}' | wc -l
+  -o json | python3 -c "import sys,json; print(sorted(json.load(sys.stdin)['data'].keys()))"
 ```
 
-**Pass**: OBC phase is `Bound`. Secret has 5 keys (`access_key_id`, `access_key_secret`, `bucketnames`, `endpoint`, `region`).
+**Pass**: OBC phase is `Bound`. Secret has 5 keys: `['access_key_id', 'access_key_secret', 'bucketnames', 'endpoint', 'region']`.
 
 ### Test 4: LokiStack Health
 
@@ -252,15 +252,17 @@ oc logs -l app.kubernetes.io/name=usage-logs-collector \
 
 ### Test 13: Basic Log Presence
 
-Query the hub LokiStack for any usage logs.
+Query the hub LokiStack via the gateway route (query-frontend requires mTLS).
 
 ```bash
-QF_POD=$(oc get pod \
-  -l app.kubernetes.io/component=query-frontend,app.kubernetes.io/instance=usage-logs \
-  -n openshift-logging --context=$HUB_CTX -o jsonpath='{.items[0].metadata.name}')
+ROUTE_HOST=$(oc get route usage-logs-gateway -n openshift-logging --context=$HUB_CTX \
+  -o jsonpath='{.spec.host}')
+WRITER_TOKEN=$(oc get secret usage-log-writer-token -n openshift-logging --context=$HUB_CTX \
+  -o jsonpath='{.data.token}' | base64 -d)
+BASE="https://${ROUTE_HOST}/api/logs/v1/application"
 
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"}' \
   --data-urlencode 'limit=5' | python3 -m json.tool
 ```
@@ -273,8 +275,8 @@ Verify both models appear in the logs.
 
 ```bash
 # facebook-opt-125m (hub model)
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"} | model="facebook-opt-125m"' \
   --data-urlencode 'limit=3' | python3 -c "
 import sys, json
@@ -284,8 +286,8 @@ print(f'facebook-opt-125m: {len(streams)} stream(s)')
 "
 
 # granite (spoke model)
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"} | model=~"granite.*"' \
   --data-urlencode 'limit=3' | python3 -c "
 import sys, json
@@ -302,8 +304,8 @@ print(f'granite: {len(streams)} stream(s)')
 Verify subscription and organization fields are populated.
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"} | subscription!=""' \
   --data-urlencode 'limit=3' | python3 -c "
 import sys, json
@@ -321,8 +323,8 @@ for s in r.get('data',{}).get('result',[]):
 Verify token count fields are present and non-zero.
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"} | tokens_total!=""' \
   --data-urlencode 'limit=3' | python3 -c "
 import sys, json
@@ -340,8 +342,8 @@ for s in r.get('data',{}).get('result',[]):
 Verify `response_type` is populated with valid values.
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"} | response_type!=""' \
   --data-urlencode 'limit=5' | python3 -c "
 import sys, json
@@ -361,8 +363,8 @@ print(f'response_types seen: {sorted(types)}')
 Verify logs from both hub and spoke inference arrive at the hub LokiStack.
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query={service_name="models-as-a-service"}' \
   --data-urlencode 'limit=20' | python3 -c "
 import sys, json
@@ -389,8 +391,8 @@ These are the LogQL queries that power key RHOAI usage dashboard panels. Run the
 #### Total requests by model
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query=sum by (model) (count_over_time({service_name="models-as-a-service"}[1h]))' \
   | python3 -m json.tool
 ```
@@ -400,8 +402,8 @@ oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
 #### Token usage by subscription
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query=sum by (subscription) (sum_over_time({service_name="models-as-a-service"} | unwrap tokens_total [1h]))' \
   | python3 -m json.tool
 ```
@@ -411,8 +413,8 @@ oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
 #### Response type breakdown
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query=sum by (response_type) (count_over_time({service_name="models-as-a-service"}[1h]))' \
   | python3 -m json.tool
 ```
@@ -422,13 +424,13 @@ oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
 #### Prompt vs completion token split by model
 
 ```bash
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query=sum by (model) (sum_over_time({service_name="models-as-a-service"} | unwrap tokens_prompt [1h]))' \
   | python3 -m json.tool
 
-oc exec "$QF_POD" -n openshift-logging --context=$HUB_CTX -- \
-  curl -s 'http://localhost:3100/loki/api/v1/query' \
+curl -sk -H "Authorization: Bearer $WRITER_TOKEN" \
+  "${BASE}/loki/api/v1/query" \
   --data-urlencode 'query=sum by (model) (sum_over_time({service_name="models-as-a-service"} | unwrap tokens_completion [1h]))' \
   | python3 -m json.tool
 ```
