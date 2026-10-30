@@ -187,39 +187,39 @@ oc get envoyfilter maas-model-access-logs -n openshift-ingress --context=$SPOKE_
 
 ### Test 11: Generate Traffic
 
+Keycloak is hub-only. Each site has local models with local subscriptions.
+Use the user whose group matches the site's subscription:
+
+| Site | User | Group | Subscription | Local Model |
+|------|------|-------|-------------|-------------|
+| Hub (site-a) | `novatech-free` | `novatech-free-users` | `novatech-free-subscription` | `facebook-opt-125m` |
+| Spoke (site-b) | `novatech-free` | `novatech-free-users` | `novatech-free-subscription` | `granite-3.1-8b-instruct-fp8` |
+
+> **Note**: `novatech-admin` (group `novatech-platform-admins`) has no
+> matching subscription on either site for local models. Do not use it for
+> inference testing.
+
 ```bash
-# 1. Get JWT from hub Keycloak
+# 1. Get JWT for novatech-free from hub Keycloak
 TOKEN=$(curl -sk "https://${KC_HOST}/realms/saas/protocol/openid-connect/token" \
   -d grant_type=password -d client_id=tenant-demo \
-  -d username=novatech-admin -d password=password123 \
+  -d username=novatech-free -d password=password123 \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 echo "JWT: ${TOKEN:0:30}..."
 
-# 2. Mint API key on hub
-HUB_KEY=$(curl -sk -X POST "https://maas.${HUB_DOMAIN}/v1/api-keys" \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"logtest-hub-$(date +%s)\"}" \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["key"])')
-echo "Hub API key: ${HUB_KEY:0:15}..."
-
-# 3. Hub inference (facebook-opt-125m)
+# 2. Hub inference (facebook-opt-125m) — direct JWT, no API key needed
 echo "--- Hub inference ---"
-curl -sk -H "Authorization: Bearer $HUB_KEY" -H "Content-Type: application/json" \
+curl -sk --max-time 30 -w "\nHTTP: %{http_code}\n" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   "https://maas.${HUB_DOMAIN}/v1/completions" \
   -d '{"model":"publishers/ai-grid-internal-models/models/facebook-opt-125m",
        "prompt":"The capital of France is","max_tokens":10}' \
   | python3 -m json.tool
 
-# 4. Mint API key on spoke
-SPOKE_KEY=$(curl -sk -X POST "https://maas.${SPOKE_DOMAIN}/v1/api-keys" \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"name\":\"logtest-spoke-$(date +%s)\"}" \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["key"])')
-echo "Spoke API key: ${SPOKE_KEY:0:15}..."
-
-# 5. Spoke inference (granite-3-1-8b-fp8)
+# 3. Spoke inference (granite-3.1-8b-instruct-fp8) — same JWT, spoke endpoint
 echo "--- Spoke inference ---"
-curl -sk -H "Authorization: Bearer $SPOKE_KEY" -H "Content-Type: application/json" \
+curl -sk --max-time 120 -w "\nHTTP: %{http_code}\n" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   "https://maas.${SPOKE_DOMAIN}/v1/completions" \
   -d '{"model":"publishers/ai-grid-internal-models/models/granite-3.1-8b-instruct-fp8",
        "prompt":"The capital of France is","max_tokens":10}' \
@@ -570,19 +570,20 @@ spoke `api-osacmaas.kni-syseng.devcluster.openshift.com`, RHOAI 3.6.
 
 | # | Test | Result | Notes |
 |---|------|--------|-------|
-| 11 | Traffic Generation | **PARTIAL** | Hub: 200 OK (facebook-opt-125m). Spoke: 401/403 (no active subscription for novatech-admin) |
+| 11 | Traffic Generation | **PASS** | Hub: 200 OK (facebook-opt-125m, novatech-free). Spoke: 200 OK (granite-3.1-8b-instruct-fp8, novatech-free) |
 | 12 | Collector Health | **PASS** | 0 export errors. Metrics: 2 received, 2 sent, 0 failed |
 | 13 | Basic Log Presence | **PASS** | 3 streams, 5 entries |
 | 14 | Per-Model Usage | **PASS** | facebook-opt-125m: 1 entry. granite: 4 entries (401/403 errors) |
 | 15 | Per-Tenant Usage | **PASS** | subscription=facebook-cross-cluster-sub |
 | 16 | Token Consumption | **PASS** | tokens_total=16, prompt=6, completion=10 |
 | 17 | Response Classification | **PASS** | hit: 1 entry, error: 4 entries |
-| 18 | Multi-cluster Aggregation | **PARTIAL** | Hub data only. Spoke MaaS returns 403 — no subscription for novatech-admin |
+| 18 | Multi-cluster Aggregation | **PASS** | Hub (upstream_host=10.129.2.189:8000) + Spoke (upstream_host=10.130.3.74:8000) both present |
 | 19 | Dashboard Panel Queries | **PASS** | All 3 panel queries return data |
 
 ### Summary
 
-- **15 PASS**, **1 WARN**, **2 PARTIAL**, **0 FAIL**
+- **17 PASS**, **1 WARN**, **0 PARTIAL**, **0 FAIL**
 - Pipeline is end-to-end functional: EnvoyFilter ALS → OTel Collector → LokiStack gateway → Loki storage
+- Both hub and spoke inference logs arrive at the hub LokiStack
 - WARN (Test 4): `ingester-2` Pending is a resource constraint, not a pipeline defect
-- PARTIAL (Tests 11, 18): Spoke inference returns 401/403 because `novatech-admin` lacks an active MaaS subscription on spoke. This is a Grid enrollment gap, not a logging pipeline issue. Once spoke subscriptions are provisioned, spoke logs will flow through the same pipeline
+- Spoke `subscription` field shows `-` in access logs even for successful 200 requests — the EnvoyFilter ALS may not be capturing the subscription response header on spoke
